@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:my_store/screens/Home.dart';
 import 'package:my_store/screens/profile_screen.dart';
 import 'package:my_store/screens/register_screen.dart';
+import 'package:my_store/screens/test.dart';
 import '../services/firebase/firebase_options.dart';
 import 'screens/login_screen.dart';
 
@@ -22,7 +23,9 @@ class MyApp extends StatelessWidget {
       title: 'My Store',
       debugShowCheckedModeBanner: false,
       initialRoute: '/login',
+      // initialRoute: '/test',
       routes: {
+        '/test': (_) => Test(),
         '/login': (_) => LoginScreen(),
         '/register': (_) => RegisterScreen(),
         '/home': (_) => HomeScreen(),

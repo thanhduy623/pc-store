@@ -54,4 +54,23 @@ class FirestoreService {
     QuerySnapshot snapshot = await query.get();
     return snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
   }
+
+
+  // Lấy thông tin dữ liệu theo ID
+  Future<Map<String, dynamic>?> getDataById(String collection, String id) async {
+    try {
+      DocumentSnapshot doc = await _db.collection(collection).doc(id).get();
+
+      // Kiểm tra nếu document tồn tại
+      if (doc.exists) {
+        return doc.data() as Map<String, dynamic>;
+      } else {
+        print('Không tìm thấy dữ liệu với ID: $id');
+        return null;
+      }
+    } catch (e) {
+      print('Lỗi khi lấy dữ liệu: $e');
+      return null;
+    }
+  }
 }

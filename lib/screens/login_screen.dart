@@ -22,10 +22,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Đăng nhập bằng email + mật khẩu
   void login() async {
-    final user = await _auth.signIn(
-      emailController.text.trim(),
-      passwordController.text.trim(),
-    );
+    String email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Vui lòng nhập đủ thông tin")),
+      );
+      return;
+    }
+
+    // Check and fix email format if needed
+    if (!isValidEmail(email)) {
+      email = "$email@gmail.com";
+    }
+
+    final user = await _auth.signIn(email, password);
 
     if (user != null) {
       // Fetch role from Firestore after login
@@ -57,6 +69,13 @@ class _LoginScreenState extends State<LoginScreen> {
         const SnackBar(content: Text("Đăng nhập thất bại")),
       );
     }
+  }
+
+  // Helper function to validate email format
+  bool isValidEmail(String email) {
+    // Regular expression to check if the email is valid
+    final emailRegExp = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    return emailRegExp.hasMatch(email);
   }
 
   // Khôi phục mật khẩu
@@ -114,6 +133,10 @@ class _LoginScreenState extends State<LoginScreen> {
               TextField(
                 controller: emailController,
                 decoration: const InputDecoration(labelText: 'Email'),
+                // Khi nhấn Enter, tự động gọi login()
+                onSubmitted: (value) {
+                  login();
+                },
               ),
               const SizedBox(height: 10),
               TextField(
@@ -134,6 +157,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     },
                   ),
                 ),
+                // Khi nhấn Enter, tự động gọi login()
+                onSubmitted: (value) {
+                  login();
+                },
               ),
               Align(
                 alignment: Alignment.centerRight,
@@ -155,8 +182,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 10),
               TextButton(
-                onPressed:
-                    () => Navigator.push(
+                onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const RegisterScreen()),
                 ),

@@ -21,12 +21,10 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
   final FirestoreService _firestoreService = FirestoreService();
 
   List<Map<String, dynamic>> messages = [];
-  List<Map<String, dynamic>> users = []; // Danh sách người dùng
+  List<Map<String, dynamic>> users = [];
   final ScrollController _scrollController = ScrollController();
   bool _isAtBottom = true;
   String? currentUserId;
-
-  // Để lưu trữ ảnh đã chọn
   File? _image;
 
   @override
@@ -38,11 +36,15 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
 
   Future<void> _loadUsers() async {
     try {
-      final usersFromMessages = await _firestoreService.getDataWithLikeMatch("messengers", {"to": adminId});
-
+      final usersFromMessages = await _firestoreService.getDataWithLikeMatch("messengers", {"to": "Admin"});
       final uniqueUsers = {
         for (var msg in usersFromMessages) msg['from'].toString(): msg,
       }.values.toList();
+
+      for (var user in uniqueUsers) {
+        final userDetails = await _firestoreService.getDataById("users", user['from']);
+        user['fullName'] = userDetails?['fullName'] ?? 'Unknown';
+      }
 
       setState(() {
         users = uniqueUsers;
@@ -54,18 +56,23 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
 
   Future<void> _loadMessages(String userId) async {
     try {
-      final fromMessages = await _firestoreService.getDataWithLikeMatch("messengers", {"from": userId, "to": adminId});
-      final toMessages = await _firestoreService.getDataWithLikeMatch("messengers", {"from": adminId, "to": userId});
+      final fromMessages = await _firestoreService.getDataWithExactMatch("messengers", {"from": userId, "to": "Admin"});
+      final toMessages = await _firestoreService.getDataWithExactMatch("messengers", {"from": "Admin", "to": userId});
 
-      final all = [...fromMessages, ...toMessages];
-      final unique = {
-        for (var msg in all) msg['timestamp'].toString(): msg,
+      final allMessages = [...fromMessages, ...toMessages];
+
+      final uniqueMessages = {
+        for (var msg in allMessages) msg['timestamp'].toString(): msg,
       }.values.toList();
 
-      unique.sort((a, b) => (b['timestamp'] ?? '').compareTo(a['timestamp'] ?? ''));
+      uniqueMessages.sort((a, b) {
+        final timestampA = a['timestamp'] ?? '';
+        final timestampB = b['timestamp'] ?? '';
+        return timestampB.compareTo(timestampA);
+      });
 
       setState(() {
-        messages = unique.take(50).toList().reversed.toList();
+        messages = uniqueMessages.take(50).toList().reversed.toList();
         currentUserId = userId;
       });
 
@@ -77,11 +84,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
 
   void _listenForNewMessages() {
     try {
-      FirebaseFirestore.instance
-          .collection('messengers')
-          .where('to', isEqualTo: adminId)
-          .snapshots()
-          .listen((snapshot) {
+      FirebaseFirestore.instance.collection('messengers').where('to', isEqualTo: adminId).snapshots().listen((snapshot) {
         _onNewMessage(snapshot);
       });
     } catch (e) {
@@ -131,9 +134,9 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
       "from": adminId,
       "to": currentUserId,
       "text": _controller.text.trim(),
-      "imageUrl": imageUrl,
+      "imageUrl": imageUrl ?? '',  // Ensure imageUrl is not null
       "timestamp": DateTime.now().toIso8601String(),
-      "isRead": false, // Đánh dấu tin nhắn chưa đọc
+      "isRead": false,
     };
 
     setState(() {
@@ -144,7 +147,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
     FocusScope.of(context).requestFocus(_focusNode);
 
     try {
-      _firestoreService.addWithAutoId("messengers", message);
+      await _firestoreService.addWithAutoId("messengers", message);
       print("Message sent: $message");
     } catch (e) {
       print("Error sending message: $e");
@@ -157,15 +160,10 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
 
   Future<String?> _uploadImageToFirebase(File image) async {
     try {
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('chat_images/${DateTime.now().toIso8601String()}.jpg');
-
+      final storageRef = FirebaseStorage.instance.ref().child('chat_images/${DateTime.now().toIso8601String()}.jpg');
       final uploadTask = storageRef.putFile(image);
-
       final taskSnapshot = await uploadTask;
       final imageUrl = await taskSnapshot.ref.getDownloadURL();
-
       print("Image URL: $imageUrl");
       return imageUrl;
     } catch (e) {
@@ -193,7 +191,6 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
 
   Widget _buildMessage(Map<String, dynamic> message) {
     final isMe = message['from'] == adminId;
-    final isRead = message['isRead'] ?? false;
 
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -218,21 +215,12 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                 message['text'] ?? '',
                 style: TextStyle(color: Colors.black, fontSize: 16),
               ),
-            if (message['imageUrl'] != null)
+            if (message['imageUrl'] != null && message['imageUrl'] != '')
               Image.network(
                 message['imageUrl'],
                 width: 150,
                 height: 150,
                 fit: BoxFit.cover,
-              ),
-            if (!isMe && !isRead)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Icon(
-                  Icons.circle,
-                  size: 10,
-                  color: Colors.red,
-                ),
               ),
           ],
         ),
@@ -246,33 +234,54 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
       appBar: AppBar(title: Text("Admin Chat")),
       body: Row(
         children: [
-          // Danh sách người dùng đã nhắn tin
+          // User list with improved design, increased width, and background color matching the overall theme
           Container(
-            width: 100,
-            color: Colors.grey[200],
+            width: 150, // Increased width to make the user list more spacious
+            color: Colors.grey[100], // Set a background color for the user list
             child: ListView.builder(
               itemCount: users.length,
               itemBuilder: (context, index) {
                 final user = users[index];
-                return ListTile(
-                  title: Text(user['from']),
+                bool isSelected = currentUserId == user['from'];
+
+                return GestureDetector(
                   onTap: () {
                     _loadMessages(user['from']);
                   },
+                  child: Container(
+                    margin: EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                    padding: EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.blue[100] : Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: isSelected ? Border.all(color: Colors.blue, width: 2) : null,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.person, color: isSelected ? Colors.blue : Colors.black),
+                        SizedBox(width: 10),
+                        Text(
+                          user['fullName'] ?? 'Unknown',
+                          style: TextStyle(fontSize: 16, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
+                        ),
+                      ],
+                    ),
+                  ),
                 );
               },
             ),
           ),
-          // Chat với người dùng
+          // Chat interface with the selected user
           Expanded(
             child: Column(
               children: [
                 Expanded(
                   child: ListView.builder(
                     controller: _scrollController,
-                    padding: EdgeInsets.symmetric(vertical: 8),
                     itemCount: messages.length,
-                    itemBuilder: (context, index) => _buildMessage(messages[index]),
+                    itemBuilder: (context, index) {
+                      return _buildMessage(messages[index]);
+                    },
                   ),
                 ),
                 Padding(
@@ -288,13 +297,13 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                           controller: _controller,
                           focusNode: _focusNode,
                           decoration: InputDecoration(
-                            hintText: "Enter message",
-                            border: OutlineInputBorder(),
+                            hintText: 'Enter message...',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
-                          onSubmitted: (_) => _sendMessage(),
                         ),
                       ),
-                      SizedBox(width: 8),
                       IconButton(
                         icon: Icon(Icons.send),
                         onPressed: _sendMessage,

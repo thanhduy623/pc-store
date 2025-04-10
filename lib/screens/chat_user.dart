@@ -1,10 +1,13 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:my_store/services/firebase/firestore_service.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class UserChatScreen extends StatefulWidget {
   const UserChatScreen({Key? key}) : super(key: key);
@@ -24,32 +27,38 @@ class _UserChatScreenState extends State<UserChatScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _isAtBottom = true;
 
-  // Để lưu trữ ảnh đã chọn
   File? _image;
+  Uint8List? _webImage;
 
   @override
   void initState() {
     super.initState();
     _loadMessages();
     _listenForNewMessages();
+    _requestPermission();
+  }
+
+  Future<void> _requestPermission() async {
+    var status = await Permission.photos.request();
+    if (status.isGranted) {
+      print("Permission granted");
+    } else {
+      print("Permission denied");
+    }
   }
 
   Future<void> _loadMessages() async {
     try {
       final fromMessages = await _firestoreService.getDataWithLikeMatch("messengers", {"from": id});
       final toMessages = await _firestoreService.getDataWithLikeMatch("messengers", {"to": id});
-
       final all = [...fromMessages, ...toMessages];
       final unique = {
         for (var msg in all) msg['timestamp'].toString(): msg
       }.values.toList();
-
       unique.sort((a, b) => (b['timestamp'] ?? '').compareTo(a['timestamp'] ?? ''));
-
       setState(() {
         messages = unique.take(50).toList().reversed.toList();
       });
-
       _scrollToBottom();
     } catch (e) {
       print("Error loading messages: $e");
@@ -62,17 +71,12 @@ class _UserChatScreenState extends State<UserChatScreen> {
           .collection('messengers')
           .where('from', isEqualTo: id)
           .snapshots()
-          .listen((snapshot) {
-        _onNewMessage(snapshot);
-      });
-
+          .listen(_onNewMessage);
       FirebaseFirestore.instance
           .collection('messengers')
           .where('to', isEqualTo: id)
           .snapshots()
-          .listen((snapshot) {
-        _onNewMessage(snapshot);
-      });
+          .listen(_onNewMessage);
     } catch (e) {
       print("Error listening for new messages: $e");
     }
@@ -81,119 +85,122 @@ class _UserChatScreenState extends State<UserChatScreen> {
   void _onNewMessage(QuerySnapshot snapshot) {
     final newMessages = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
     final allMessages = [...messages, ...newMessages];
-
     final uniqueMessages = {
       for (var msg in allMessages) msg['timestamp'].toString(): msg
     }.values.toList();
-
     uniqueMessages.sort((a, b) => (b['timestamp'] ?? '').compareTo(a['timestamp'] ?? ''));
-
     setState(() {
       messages = uniqueMessages.take(50).toList().reversed.toList();
     });
-
-    if (_isAtBottom) {
-      _scrollToBottom();
-    }
+    if (_isAtBottom) _scrollToBottom();
   }
 
   void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  Future<void> _getImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      if (kIsWeb) {
+        _webImage = await pickedFile.readAsBytes();
+        // TODO: xử lý riêng nếu muốn hỗ trợ upload trên web
+      } else {
+        _image = File(pickedFile.path);
+        await _sendMessage(); // <-- Gửi luôn ảnh sau khi chọn
+      }
+    } else {
+      print('No image selected.');
+    }
+  }
+
+
+  Future<String> _uploadImageToStorage(File image) async {
+    try {
+      final storageRef = FirebaseStorage.instance.ref().child('chat_images/${DateTime.now().millisecondsSinceEpoch}');
+      final uploadTask = storageRef.putFile(image);
+      final snapshot = await uploadTask.whenComplete(() {});
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+      return downloadUrl;
+    } catch (e) {
+      print("Error uploading image: $e");
+      return '';
+    }
+  }
+
+  Future<String> _uploadWebImageToStorage(Uint8List imageBytes) async {
+    try {
+      final storageRef = FirebaseStorage.instance.ref().child('chat_images/${DateTime.now().millisecondsSinceEpoch}.png');
+      final uploadTask = storageRef.putData(imageBytes);
+      final snapshot = await uploadTask.whenComplete(() {});
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+      return downloadUrl;
+    } catch (e) {
+      print("Error uploading web image: $e");
+      return '';
     }
   }
 
   Future<void> _sendMessage() async {
-    if (_controller.text.trim().isEmpty && _image == null) return;
+    final text = _controller.text.trim();
+    if (text.isEmpty && _image == null) return;
 
     String? imageUrl;
 
     if (_image != null) {
-      imageUrl = await _uploadImageToFirebase(_image!);
+      imageUrl = await _uploadImageToStorage(_image!);
     }
 
     final message = {
       "from": id,
       "to": "Admin",
-      "text": _controller.text.trim(),
+      "text": text,
       "imageUrl": imageUrl,
       "timestamp": DateTime.now().toIso8601String(),
     };
 
-    setState(() {
-      messages.add(message);
-    });
-
-    _controller.clear();
-    FocusScope.of(context).requestFocus(_focusNode);
+    _firestoreService.updateData("users", id, {"isReply": false});
 
     try {
-      _firestoreService.addWithAutoId("messengers", message);
-      print("Message sent: $message");
+      await _firestoreService.addWithAutoId("messengers", message);
+      setState(() {
+        messages.add(message);
+      });
     } catch (e) {
       print("Error sending message: $e");
     }
+
+    _controller.clear();
+    _image = null; // <-- reset image sau khi gửi
 
     if (_isAtBottom) {
       _scrollToBottom();
     }
   }
 
-  Future<String?> _uploadImageToFirebase(File image) async {
-    try {
-      // Create a reference to the storage location
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('chat_images/${DateTime.now().toIso8601String()}.jpg');
-
-      // Start uploading the image
-      final uploadTask = storageRef.putFile(image);
-
-      // Wait for the upload to finish and retrieve the download URL
-      final taskSnapshot = await uploadTask;
-      final imageUrl = await taskSnapshot.ref.getDownloadURL();
-
-      // Print the image URL to the console
-      print("Image URL: $imageUrl");
-      return imageUrl;
-    } catch (e) {
-      print("Error uploading image: $e");
-      return null;
-    }
-  }
-
-  Future<void> _pickImage() async {
-    try {
-      final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-
-      if (pickedFile != null) {
-        setState(() {
-          _image = File(pickedFile.path);
-        });
-      } else {
-        print("No image selected");
-      }
-    } catch (e) {
-      print("Error picking image: $e");
-    }
-  }
 
   Widget _buildMessage(Map<String, dynamic> message) {
     final isMe = message['from'] == id;
+    final hasText = message['text'] != null && message['text'].isNotEmpty;
+    final hasImage = message['imageUrl'] != null && message['imageUrl'].isNotEmpty;
 
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-        padding: EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: isMe ? Colors.blue[200] : Colors.grey[300],
+          color: isMe ? Colors.blue[100] : Colors.grey[200],
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(12),
             topRight: Radius.circular(12),
@@ -202,25 +209,31 @@ class _UserChatScreenState extends State<UserChatScreen> {
           ),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            if (message['text'] != null)
+            if (hasText)
               Text(
-                message['text'] ?? '',
-                style: TextStyle(color: Colors.black, fontSize: 16),
+                message['text'],
+                style: const TextStyle(fontSize: 16, color: Colors.black87),
               ),
-            if (message['imageUrl'] != null)
-              Image.network(
-                message['imageUrl'],
-                width: 150,
-                height: 150,
-                fit: BoxFit.cover,
+            if (hasImage)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 250),
+                  child: Image.network(
+                    message['imageUrl'],
+                    fit: BoxFit.cover,
+                  ),
+                ),
               ),
           ],
         ),
       ),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -236,13 +249,23 @@ class _UserChatScreenState extends State<UserChatScreen> {
               itemBuilder: (context, index) => _buildMessage(messages[index]),
             ),
           ),
+          if (_image != null || _webImage != null)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: 250, maxHeight: 250),
+                child: kIsWeb
+                    ? Image.memory(_webImage!, fit: BoxFit.cover)
+                    : Image.file(_image!, fit: BoxFit.cover),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Row(
               children: [
                 IconButton(
                   icon: Icon(Icons.photo),
-                  onPressed: _pickImage,
+                  onPressed: _getImage,
                 ),
                 Expanded(
                   child: TextField(
