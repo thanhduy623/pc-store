@@ -25,7 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Widget> _screens = [
     const HomeScreenContent(), // Home Screen content
     const ProfileScreen(),     // Profile screen content
-    const UserChatScreen(),        // Chat screen content
+    UserChatScreen(),        // Chat screen content
   ];
 
   @override
@@ -55,7 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 case 'chat_user':
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const UserChatScreen()),
+                    MaterialPageRoute(builder: (_) => UserChatScreen()),
                   );
                   break;
                 case 'logout':

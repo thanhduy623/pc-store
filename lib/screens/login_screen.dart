@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // For Firestore
+import 'package:my_store/screens/chat_admin.dart'; // Import your AdminChatScreen
 import '../services/firebase/auth_service.dart';
 import 'Home.dart';
 import 'register_screen.dart';
@@ -24,15 +26,36 @@ class _LoginScreenState extends State<LoginScreen> {
       emailController.text.trim(),
       passwordController.text.trim(),
     );
+
     if (user != null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
+      // Fetch role from Firestore after login
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+
+      if (userDoc.exists) {
+        final role = userDoc.data()?['role']; // Assuming 'role' is stored in Firestore
+
+        // Navigate to Admin Chat Screen if role is "Admin"
+        if (role == "Admin") {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const AdminChatScreen()),
+          );
+        } else {
+          // Navigate to Home Screen for other roles
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Không tìm thấy thông tin người dùng")),
+        );
+      }
     } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Đăng nhập thất bại")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Đăng nhập thất bại")),
+      );
     }
   }
 
@@ -52,9 +75,7 @@ class _LoginScreenState extends State<LoginScreen> {
         const SnackBar(content: Text("Đã gửi email khôi phục mật khẩu")),
       );
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Lỗi: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi: $e")));
     }
   }
 
@@ -136,9 +157,9 @@ class _LoginScreenState extends State<LoginScreen> {
               TextButton(
                 onPressed:
                     () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                    ),
+                  context,
+                  MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                ),
                 child: const Text('Chưa có tài khoản? Đăng ký'),
               ),
             ],
