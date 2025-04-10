@@ -1,8 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'profile_screen.dart';
-// import 'chat_screen.dart'; // Import your ChatScreen here.
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'chat_user.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -26,7 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Widget> _screens = [
     const HomeScreenContent(), // Home Screen content
     const ProfileScreen(),     // Profile screen content
-    const ChatScreen(),        // Chat screen content
+    const UserChatScreen(),        // Chat screen content
   ];
 
   @override
@@ -53,6 +52,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     MaterialPageRoute(builder: (_) => const ProfileScreen()),
                   );
                   break;
+                case 'chat_user':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const UserChatScreen()),
+                  );
+                  break;
                 case 'logout':
                   FirebaseAuth.instance.signOut();
                   Navigator.pushReplacementNamed(context, '/login');
@@ -71,6 +76,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               PopupMenuItem<String>(
+                value: 'chat_user',
+                child: Row(
+                  children: const [
+                    Icon(Icons.chat),
+                    SizedBox(width: 8),
+                    Text('Tư vấn sản phẩm'),
+                  ],
+                ),
+              ),
+              PopupMenuItem<String>(
                 value: 'logout',
                 child: Row(
                   children: const [
@@ -85,24 +100,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       body: _screens[_selectedIndex], // Display the current screen
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.chat),
-            label: 'Chat',
-          ),
-        ],
-      ),
     );
   }
 }
@@ -129,47 +126,6 @@ class HomeScreenContent extends StatelessWidget {
           Text(email),
         ],
       ),
-    );
-  }
-}
-
-class ChatScreen extends StatelessWidget {
-  const ChatScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final User? user = FirebaseAuth.instance.currentUser;
-    final String userId = user?.uid ?? ''; // Lấy UID của người dùng hiện tại
-
-    return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator()); // Đợi dữ liệu
-        }
-
-        if (snapshot.hasError) {
-          return const Center(child: Text('Có lỗi khi tải thông tin người dùng.'));
-        }
-
-        if (!snapshot.hasData || !snapshot.data!.exists) {
-          return const Center(child: Text('Thông tin người dùng không tồn tại.'));
-        }
-
-        var userData = snapshot.data!.data() as Map<String, dynamic>;
-        String address = userData['address'] ?? 'Chưa cập nhật địa chỉ';
-
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('Chat Screen', style: TextStyle(fontSize: 24)),
-              const SizedBox(height: 20),
-              Text('Địa chỉ: $address', style: const TextStyle(fontSize: 18)),
-            ],
-          ),
-        );
-      },
     );
   }
 }
