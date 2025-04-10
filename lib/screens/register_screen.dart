@@ -27,8 +27,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         // 🔥 Lưu thông tin vào Firestore
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'email': emailController.text.trim(),
-          'name': nameController.text.trim(),
-          'address': addressController.text.trim(),
+          'fullName': nameController.text.trim(),
+          'shippingAddress': addressController.text.trim(),
           'createdAt': FieldValue.serverTimestamp(),
         });
 
