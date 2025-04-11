@@ -1,53 +1,55 @@
-import 'dart:io';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:convert';
+import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:my_store/services/firebase/firestore_service.dart';
 
 class AdminChatScreen extends StatefulWidget {
-  const AdminChatScreen({Key? key}) : super(key: key);
+  const AdminChatScreen({super.key});
 
   @override
-  _AdminChatScreenState createState() => _AdminChatScreenState();
+  State<AdminChatScreen> createState() => _AdminChatScreenState();
 }
 
 class _AdminChatScreenState extends State<AdminChatScreen> {
-  User? user = FirebaseAuth.instance.currentUser;
-  final String adminId = FirebaseAuth.instance.currentUser!.uid;
-  final _controller = TextEditingController();
-  final _focusNode = FocusNode();
-  final FirestoreService _firestoreService = FirestoreService();
-
-  List<Map<String, dynamic>> messages = [];
-  List<Map<String, dynamic>> users = [];
+  final List<Map<String, dynamic>> messages = [];
+  final List<Map<String, dynamic>> usersList = [];
+  final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  bool _isAtBottom = true;
-  String? currentUserId;
-  File? _image;
+
+  final String idAdmin = "Admin";
+  String? selectedUserId;
+  StreamSubscription? _messageSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadUsers();
-    _listenForNewMessages();
   }
 
   Future<void> _loadUsers() async {
     try {
-      final usersFromMessages = await _firestoreService.getDataWithLikeMatch("messengers", {"to": "Admin"});
-      final uniqueUsers = {
-        for (var msg in usersFromMessages) msg['from'].toString(): msg,
-      }.values.toList();
+      final snapshot = await FirebaseFirestore.instance
+          .collection('messengers')
+          .where('to', isEqualTo: idAdmin)
+          .orderBy('timestamp', descending: true)
+          .get();
 
-      for (var user in uniqueUsers) {
-        final userDetails = await _firestoreService.getDataById("users", user['from']);
-        user['fullName'] = userDetails?['fullName'] ?? 'Unknown';
+      final usersSet = <String>{};
+      for (var doc in snapshot.docs) {
+        final fromUser = doc['from'];
+        if (fromUser != idAdmin) usersSet.add(fromUser);
       }
 
+      final users = await Future.wait(usersSet.map((userId) async {
+        final doc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+        final data = doc.data();
+        return data != null ? {...data, 'id': userId} : null;
+      })).then((list) => list.whereType<Map<String, dynamic>>().toList());
+
       setState(() {
-        users = uniqueUsers;
+        usersList.clear();
+        usersList.addAll(users);
       });
     } catch (e) {
       print("Error loading users: $e");
@@ -55,223 +57,195 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
   }
 
   Future<void> _loadMessages(String userId) async {
-    try {
-      final fromMessages = await _firestoreService.getDataWithExactMatch("messengers", {"from": userId, "to": "Admin"});
-      final toMessages = await _firestoreService.getDataWithExactMatch("messengers", {"from": "Admin", "to": userId});
+    final now = DateTime.now();
+    final thirtyDaysAgo = now.subtract(Duration(days: 30));
+    final snapshot = await FirebaseFirestore.instance
+        .collection('messengers')
+        .where('timestamp', isGreaterThan: thirtyDaysAgo.toIso8601String())
+        .where('from', whereIn: [userId, idAdmin])
+        .where('to', whereIn: [userId, idAdmin])
+        .orderBy('timestamp')
+        .get();
 
-      final allMessages = [...fromMessages, ...toMessages];
-
-      final uniqueMessages = {
-        for (var msg in allMessages) msg['timestamp'].toString(): msg,
-      }.values.toList();
-
-      uniqueMessages.sort((a, b) {
-        final timestampA = a['timestamp'] ?? '';
-        final timestampB = b['timestamp'] ?? '';
-        return timestampB.compareTo(timestampA);
-      });
-
-      setState(() {
-        messages = uniqueMessages.take(50).toList().reversed.toList();
-        currentUserId = userId;
-      });
-
-      _scrollToBottom();
-    } catch (e) {
-      print("Error loading messages: $e");
-    }
-  }
-
-  void _listenForNewMessages() {
-    try {
-      FirebaseFirestore.instance.collection('messengers').where('to', isEqualTo: adminId).snapshots().listen((snapshot) {
-        _onNewMessage(snapshot);
-      });
-    } catch (e) {
-      print("Error listening for new messages: $e");
-    }
-  }
-
-  void _onNewMessage(QuerySnapshot snapshot) {
-    final newMessages = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
-    final allMessages = [...messages, ...newMessages];
-
-    final uniqueMessages = {
-      for (var msg in allMessages) msg['timestamp'].toString(): msg,
-    }.values.toList();
-
-    uniqueMessages.sort((a, b) => (b['timestamp'] ?? '').compareTo(a['timestamp'] ?? ''));
+    final loadedMessages = snapshot.docs.map((doc) {
+      final data = doc.data();
+      if (data['image'] != null) {
+        data['type'] = 'image';
+        data['data'] = base64Decode(data['image']);
+      } else {
+        data['type'] = 'text';
+        data['data'] = data['text'] ?? '';
+      }
+      return data;
+    }).toList();
 
     setState(() {
-      messages = uniqueMessages.take(50).toList().reversed.toList();
+      messages.clear();
+      messages.addAll(loadedMessages);
     });
 
-    if (_isAtBottom) {
-      _scrollToBottom();
-    }
+    _scrollToBottom();
   }
 
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
+  void _listenForNewMessages(String userId) {
+    _messageSubscription?.cancel();
+
+    final now = DateTime.now();
+    final thirtyDaysAgo = now.subtract(Duration(days: 30));
+
+    _messageSubscription = FirebaseFirestore.instance
+        .collection('messengers')
+        .where('timestamp', isGreaterThan: thirtyDaysAgo.toIso8601String())
+        .where('from', whereIn: [userId, idAdmin])
+        .where('to', whereIn: [userId, idAdmin])
+        .orderBy('timestamp')
+        .snapshots()
+        .listen((snapshot) {
+      final newMessages = snapshot.docs.map((doc) {
+        final data = doc.data();
+        if (data['image'] != null) {
+          data['type'] = 'image';
+          data['data'] = base64Decode(data['image']);
+        } else {
+          data['type'] = 'text';
+          data['data'] = data['text'] ?? '';
+        }
+        return data;
+      }).toList();
+
+      setState(() {
+        messages.clear();
+        messages.addAll(newMessages);
+      });
+
+      _scrollToBottom();
+    });
   }
 
   Future<void> _sendMessage() async {
-    if (_controller.text.trim().isEmpty && _image == null) return;
-
-    String? imageUrl;
-
-    if (_image != null) {
-      imageUrl = await _uploadImageToFirebase(_image!);
-    }
+    final text = _controller.text.trim();
+    if (text.isEmpty || selectedUserId == null) return;
 
     final message = {
-      "from": adminId,
-      "to": currentUserId,
-      "text": _controller.text.trim(),
-      "imageUrl": imageUrl ?? '',  // Ensure imageUrl is not null
-      "timestamp": DateTime.now().toIso8601String(),
-      "isRead": false,
+      "from": idAdmin,
+      "to": selectedUserId,
+      "text": text,
+      "timestamp": DateTime.now().toIso8601String()
     };
 
+    await FirebaseFirestore.instance.collection('messengers').add(message);
+
     setState(() {
-      messages.add(message);
+      messages.add({
+        "from": idAdmin,
+        "type": "text",
+        "data": text,
+        "timestamp": message["timestamp"]
+      });
     });
 
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(selectedUserId)
+        .update({"isReply": true});
+
     _controller.clear();
-    FocusScope.of(context).requestFocus(_focusNode);
-
-    try {
-      await _firestoreService.addWithAutoId("messengers", message);
-      print("Message sent: $message");
-    } catch (e) {
-      print("Error sending message: $e");
-    }
-
-    if (_isAtBottom) {
-      _scrollToBottom();
-    }
+    _scrollToBottom();
+    _loadUsers(); // Cập nhật trạng thái đã trả lời
   }
 
-  Future<String?> _uploadImageToFirebase(File image) async {
-    try {
-      final storageRef = FirebaseStorage.instance.ref().child('chat_images/${DateTime.now().toIso8601String()}.jpg');
-      final uploadTask = storageRef.putFile(image);
-      final taskSnapshot = await uploadTask;
-      final imageUrl = await taskSnapshot.ref.getDownloadURL();
-      print("Image URL: $imageUrl");
-      return imageUrl;
-    } catch (e) {
-      print("Error uploading image: $e");
-      return null;
-    }
+  void _onUserTap(String userId) {
+    if (selectedUserId == userId) return;
+
+    setState(() {
+      selectedUserId = userId;
+      messages.clear();
+    });
+
+    _loadMessages(userId);
+    _listenForNewMessages(userId);
   }
 
-  Future<void> _pickImage() async {
-    try {
-      final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-
-      if (pickedFile != null) {
-        setState(() {
-          _image = File(pickedFile.path);
-        });
-      } else {
-        print("No image selected");
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
       }
-    } catch (e) {
-      print("Error picking image: $e");
-    }
+    });
   }
 
   Widget _buildMessage(Map<String, dynamic> message) {
-    final isMe = message['from'] == adminId;
+    final isMe = message['from'] == idAdmin;
+    final alignment = isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final color = isMe ? Colors.blue[100] : Colors.grey[300];
+    final margin = isMe
+        ? const EdgeInsets.only(left: 50, right: 8, top: 4, bottom: 4)
+        : const EdgeInsets.only(right: 50, left: 8, top: 4, bottom: 4);
 
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-        padding: EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
-        decoration: BoxDecoration(
-          color: isMe ? Colors.blue[200] : Colors.grey[300],
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(12),
-            topRight: Radius.circular(12),
-            bottomLeft: Radius.circular(isMe ? 12 : 0),
-            bottomRight: Radius.circular(isMe ? 0 : 12),
+    final content = message['type'] == 'image'
+        ? Image.memory(message['data'], width: 200, fit: BoxFit.cover)
+        : Text(message['data']);
+
+    return Column(
+      crossAxisAlignment: alignment,
+      children: [
+        Container(
+          margin: margin,
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(10),
           ),
+          child: content,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (message['text'] != null)
-              Text(
-                message['text'] ?? '',
-                style: TextStyle(color: Colors.black, fontSize: 16),
-              ),
-            if (message['imageUrl'] != null && message['imageUrl'] != '')
-              Image.network(
-                message['imageUrl'],
-                width: 150,
-                height: 150,
-                fit: BoxFit.cover,
-              ),
-          ],
-        ),
-      ),
+      ],
     );
+  }
+
+  @override
+  void dispose() {
+    _messageSubscription?.cancel();
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Admin Chat")),
+      appBar: AppBar(title: const Text("Admin - Tin nhắn")),
       body: Row(
         children: [
-          // User list with improved design, increased width, and background color matching the overall theme
+          // Sidebar
           Container(
-            width: 150, // Increased width to make the user list more spacious
-            color: Colors.grey[100], // Set a background color for the user list
+            width: 250,
+            decoration: const BoxDecoration(
+              border: Border(right: BorderSide(color: Colors.grey)),
+            ),
             child: ListView.builder(
-              itemCount: users.length,
+              itemCount: usersList.length,
               itemBuilder: (context, index) {
-                final user = users[index];
-                bool isSelected = currentUserId == user['from'];
+                final user = usersList[index];
+                final userId = user['id'];
+                final isUnread = user['isReply'] == false;
 
-                return GestureDetector(
-                  onTap: () {
-                    _loadMessages(user['from']);
-                  },
-                  child: Container(
-                    margin: EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-                    padding: EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-                    decoration: BoxDecoration(
-                      color: isSelected ? Colors.blue[100] : Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: isSelected ? Border.all(color: Colors.blue, width: 2) : null,
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.person, color: isSelected ? Colors.blue : Colors.black),
-                        SizedBox(width: 10),
-                        Text(
-                          user['fullName'] ?? 'Unknown',
-                          style: TextStyle(fontSize: 16, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
-                        ),
-                      ],
-                    ),
-                  ),
+                return ListTile(
+                  selected: userId == selectedUserId,
+                  onTap: () => _onUserTap(userId),
+                  leading: isUnread
+                      ? const Icon(Icons.brightness_1, color: Colors.red, size: 12)
+                      : const SizedBox(width: 12),
+                  title: Text(user['name'] ?? 'Unknown'),
                 );
               },
             ),
           ),
-          // Chat interface with the selected user
+
+          // Chat panel
           Expanded(
             child: Column(
               children: [
@@ -284,28 +258,26 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                     },
                   ),
                 ),
+                const Divider(height: 1),
                 Padding(
-                  padding: const EdgeInsets.all(8.0),
+                  padding: const EdgeInsets.all(8),
                   child: Row(
                     children: [
-                      IconButton(
-                        icon: Icon(Icons.photo),
-                        onPressed: _pickImage,
-                      ),
                       Expanded(
                         child: TextField(
                           controller: _controller,
-                          focusNode: _focusNode,
-                          decoration: InputDecoration(
-                            hintText: 'Enter message...',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                          onSubmitted: (_) => _sendMessage(),
+                          decoration: const InputDecoration(
+                            hintText: 'Nhập tin nhắn...',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                           ),
                         ),
                       ),
+                      const SizedBox(width: 8),
                       IconButton(
-                        icon: Icon(Icons.send),
+                        icon: const Icon(Icons.send),
                         onPressed: _sendMessage,
                       ),
                     ],

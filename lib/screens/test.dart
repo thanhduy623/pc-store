@@ -1,118 +1,293 @@
-import 'dart:io';
+import 'dart:convert';
+import 'dart:async';
 import 'dart:typed_data';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class Test extends StatefulWidget {
-  const Test({Key? key}) : super(key: key);
+class AdminChatScreen extends StatefulWidget {
+  const AdminChatScreen({super.key});
 
   @override
-  State<Test> createState() => _TestState();
+  State<AdminChatScreen> createState() => _AdminChatScreenState();
 }
 
-class _TestState extends State<Test> {
-  final List<Map<String, dynamic>> _messages = [];
-  final TextEditingController _textController = TextEditingController();
+class _AdminChatScreenState extends State<AdminChatScreen> {
+  final List<Map<String, dynamic>> messages = [];
+  final List<Map<String, dynamic>> usersList = [];
+  final TextEditingController _controller = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
-  Future<void> _getImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+  final String idAdmin = "Admin";
+  String? selectedUserId;
+  StreamSubscription? _messageSubscription;
 
-    if (pickedFile != null) {
-      if (kIsWeb) {
-        final bytes = await pickedFile.readAsBytes();
-        setState(() {
-          _messages.add({"type": "image", "data": bytes});
-        });
-      } else {
-        setState(() {
-          _messages.add({"type": "image", "data": File(pickedFile.path)});
-        });
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
+  }
+
+  Future<void> _loadUsers() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('messengers')
+          .where('to', isEqualTo: idAdmin)
+          .orderBy('timestamp', descending: true)
+          .get();
+
+      final usersSet = <String>{};
+      for (var doc in snapshot.docs) {
+        final fromUser = doc['from'];
+        if (fromUser != idAdmin) usersSet.add(fromUser);
       }
-    } else {
-      print('No image selected.');
-    }
-  }
 
-  void _sendMessage() {
-    final text = _textController.text.trim();
-    if (text.isNotEmpty) {
+      final users = await Future.wait(usersSet.map((userId) async {
+        final doc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+        final data = doc.data();
+        if (data != null) {
+          return {
+            ...data,
+            'id': userId,
+          };
+        }
+        return null;
+      }));
+
       setState(() {
-        _messages.add({"type": "text", "data": text});
+        usersList.clear();
+        usersList.addAll(users.whereType<Map<String, dynamic>>());
       });
-      _textController.clear();
+    } catch (e) {
+      print("Error loading users: $e");
     }
   }
 
-  Widget _buildMessageWidget(Map<String, dynamic> message) {
-    if (message["type"] == "image") {
-      return Center(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            double maxWidth = constraints.maxWidth > 250 ? 250 : constraints.maxWidth;
-            return ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxWidth),
-              child: kIsWeb
-                  ? Image.memory(message["data"], fit: BoxFit.contain)
-                  : Image.file(message["data"], fit: BoxFit.contain),
-            );
-          },
+  Future<void> _loadMessages(String userId) async {
+    final now = DateTime.now();
+    final thirtyDaysAgo = now.subtract(Duration(days: 30));
+    final snapshot = await FirebaseFirestore.instance
+        .collection('messengers')
+        .where('timestamp', isGreaterThan: thirtyDaysAgo.toIso8601String())
+        .where('from', whereIn: [userId, idAdmin])
+        .where('to', whereIn: [userId, idAdmin])
+        .orderBy('timestamp')
+        .get();
+
+    final loadedMessages = snapshot.docs.map((doc) {
+      final data = doc.data();
+      if (data['image'] != null) {
+        data['type'] = 'image';
+        data['data'] = base64Decode(data['image']);
+      } else {
+        data['type'] = 'text';
+        data['data'] = data['text'] ?? '';
+      }
+      return data;
+    }).toList();
+
+    setState(() {
+      messages.clear();
+      messages.addAll(loadedMessages);
+    });
+
+    _scrollToBottom();
+  }
+
+  void _listenForNewMessages(String userId) {
+    _messageSubscription?.cancel();
+
+    final now = DateTime.now();
+    final thirtyDaysAgo = now.subtract(Duration(days: 30));
+
+    _messageSubscription = FirebaseFirestore.instance
+        .collection('messengers')
+        .where('timestamp', isGreaterThan: thirtyDaysAgo.toIso8601String())
+        .where('from', whereIn: [userId, idAdmin])
+        .where('to', whereIn: [userId, idAdmin])
+        .orderBy('timestamp')
+        .snapshots()
+        .listen((snapshot) {
+      final newMessages = snapshot.docs.map((doc) {
+        final data = doc.data();
+        if (data['image'] != null) {
+          data['type'] = 'image';
+          data['data'] = base64Decode(data['image']);
+        } else {
+          data['type'] = 'text';
+          data['data'] = data['text'] ?? '';
+        }
+        return data;
+      }).toList();
+
+      setState(() {
+        messages.clear();
+        messages.addAll(newMessages);
+      });
+
+      _scrollToBottom();
+    });
+  }
+
+  Future<void> _sendMessage() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty || selectedUserId == null) return;
+
+    final message = {
+      "from": idAdmin,
+      "to": selectedUserId,
+      "text": text,
+      "timestamp": DateTime.now().toIso8601String()
+    };
+
+    await FirebaseFirestore.instance.collection('messengers').add(message);
+
+    setState(() {
+      messages.add({
+        "from": idAdmin,
+        "type": "text",
+        "data": text,
+        "timestamp": message["timestamp"]
+      });
+    });
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(selectedUserId)
+        .update({"isReply": true});
+
+    _controller.clear();
+    _scrollToBottom();
+    _loadUsers(); // Cập nhật trạng thái đã trả lời
+  }
+
+  void _onUserTap(String userId) {
+    if (selectedUserId == userId) return;
+
+    setState(() {
+      selectedUserId = userId;
+      messages.clear();
+    });
+
+    _loadMessages(userId);
+    _listenForNewMessages(userId);
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  Widget _buildMessage(Map<String, dynamic> message) {
+    final isMe = message['from'] == idAdmin;
+    final alignment = isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+    final color = isMe ? Colors.blue[100] : Colors.grey[300];
+    final margin = isMe
+        ? const EdgeInsets.only(left: 50, right: 8, top: 4, bottom: 4)
+        : const EdgeInsets.only(right: 50, left: 8, top: 4, bottom: 4);
+
+    final content = message['type'] == 'image'
+        ? Image.memory(message['data'], width: 200, fit: BoxFit.cover)
+        : Text(message['data']);
+
+    return Column(
+      crossAxisAlignment: alignment,
+      children: [
+        Container(
+          margin: margin,
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: content,
         ),
-      );
-    } else {
-      return Container(
-        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
-        margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
-        decoration: BoxDecoration(
-          color: Colors.grey[200],
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(message["data"] ?? ''),
-      );
-    }
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    _messageSubscription?.cancel();
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Tin nhắn và ảnh đã chọn")),
-      body: Column(
+      appBar: AppBar(title: const Text("Admin - Tin nhắn")),
+      body: Row(
         children: [
-          Expanded(
+          // Sidebar
+          Container(
+            width: 250,
+            decoration: const BoxDecoration(
+              border: Border(right: BorderSide(color: Colors.grey)),
+            ),
             child: ListView.builder(
-              itemCount: _messages.length,
+              itemCount: usersList.length,
               itemBuilder: (context, index) {
-                return _buildMessageWidget(_messages[index]);
+                final user = usersList[index];
+                final userId = user['id'];
+                final isUnread = user['isReply'] == false;
+
+                return ListTile(
+                  selected: userId == selectedUserId,
+                  onTap: () => _onUserTap(userId),
+                  leading: isUnread
+                      ? const Icon(Icons.brightness_1, color: Colors.red, size: 12)
+                      : const SizedBox(width: 12),
+                  title: Text(user['name'] ?? 'Unknown'),
+                );
               },
             ),
           ),
-          Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
+
+          // Chat panel
+          Expanded(
+            child: Column(
               children: [
-                IconButton(
-                  icon: Icon(Icons.photo),
-                  onPressed: _getImage,
-                ),
                 Expanded(
-                  child: TextField(
-                    controller: _textController,
-                    onSubmitted: (_) => _sendMessage(),
-                    decoration: InputDecoration(
-                      hintText: 'Nhập tin nhắn...',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    ),
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      return _buildMessage(messages[index]);
+                    },
                   ),
                 ),
-                SizedBox(width: 8),
-                IconButton(
-                  icon: Icon(Icons.send),
-                  onPressed: _sendMessage,
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          onSubmitted: (_) => _sendMessage(),
+                          decoration: const InputDecoration(
+                            hintText: 'Nhập tin nhắn...',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.send),
+                        onPressed: _sendMessage,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
