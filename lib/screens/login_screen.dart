@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // For Firestore
 import 'package:my_store/screens/chat_admin.dart'; // Import your AdminChatScreen
+import 'package:my_store/screens/home_admin.dart';
 import '../services/firebase/auth_service.dart';
 import 'Home.dart';
 import 'register_screen.dart';
@@ -50,7 +51,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (role == "Admin") {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const AdminChatScreen()),
+            MaterialPageRoute(builder: (_) => const HomeScreenAdmin()),
           );
         } else {
           // Navigate to Home Screen for other roles

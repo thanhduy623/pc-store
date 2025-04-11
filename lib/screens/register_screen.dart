@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firebase/auth_service.dart';
+import 'package:firebase_database/firebase_database.dart';
+
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -15,6 +17,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final passwordController = TextEditingController();
   final nameController = TextEditingController();
   final addressController = TextEditingController();
+  final DatabaseReference _databaseRef = FirebaseDatabase.instance
+      .refFromURL('https://my-store-fb27a-default-rtdb.firebaseio.com/');
   final _auth = AuthService();
 
   void register() async {
@@ -35,6 +39,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text("Đăng ký thành công")));
+        countAcount();
         Navigator.pop(context);
       }
     } on FirebaseAuthException catch (e) {
@@ -56,6 +61,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
         context,
       ).showSnackBar(const SnackBar(content: Text("Đăng ký thất bại")));
     }
+  }
+
+  void countAcount() {
+    _databaseRef.child("users").get().then((snapshot) {
+      if (snapshot.exists) {
+        final data = snapshot.value as Map?;
+        if (data != null && data.containsKey('amount')) {
+          // Lấy giá trị amount hiện tại
+          int currentAmount = data['amount'] ?? 0;
+          // Cộng 1 vào amount và lưu lại
+          _databaseRef.child("users").update({
+            'amount': currentAmount + 1,
+          });
+        }
+      } else {
+        // Nếu chưa có dữ liệu, tạo mới
+        _databaseRef.child("users").set({
+          'amount': 1, // Bắt đầu từ 1 nếu chưa có dữ liệu
+        });
+      }
+    });
   }
 
   @override

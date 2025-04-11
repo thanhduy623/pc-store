@@ -1,17 +1,18 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:my_store/screens/chat_admin.dart';
+import 'CountAccount.dart';
 import 'profile_screen.dart';
-import 'chat_user.dart';
 
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+class HomeScreenAdmin extends StatefulWidget {
+  const HomeScreenAdmin({super.key});
 
   @override
   _HomeScreenState createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreenAdmin> {
   int _selectedIndex = 0;
 
   // Function to handle navigation based on selected index.
@@ -25,19 +26,18 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Widget> _screens = [
     const HomeScreenContent(), // Home Screen content
     const ProfileScreen(),     // Profile screen content
-    UserChatScreen(),        // Chat screen content
   ];
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    final displayName = user?.displayName ?? 'Người dùng';
+    final displayName = user?.displayName ?? 'Quản trị viên';
     final email = user?.email ?? '';
     final photoURL = user?.photoURL;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Trang chủ'),
+        title: const Text('Trang chủ - Admin'),
         actions: [
           PopupMenuButton<String>(
             icon: CircleAvatar(
@@ -52,10 +52,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     MaterialPageRoute(builder: (_) => const ProfileScreen()),
                   );
                   break;
-                case 'chat_user':
+                case 'chat-admin':
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => UserChatScreen()),
+                    MaterialPageRoute(builder: (_) => AdminChatScreen()),
+                  );
+                  break;
+                case 'count':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AmountScreen()),
                   );
                   break;
                 case 'logout':
@@ -76,12 +82,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               PopupMenuItem<String>(
-                value: 'chat_user',
+                value: 'chat-admin',
                 child: Row(
                   children: const [
                     Icon(Icons.chat),
                     SizedBox(width: 8),
-                    Text('Tư vấn sản phẩm'),
+                    Text('Trả lời tư vấn'),
+                  ],
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'count',
+                child: Row(
+                  children: const [
+                    Icon(Icons.person),
+                    SizedBox(width: 8),
+                    Text('Số lượng người dùng'),
                   ],
                 ),
               ),

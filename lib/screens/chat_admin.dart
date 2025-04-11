@@ -236,7 +236,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                   leading: isUnread
                       ? const Icon(Icons.brightness_1, color: Colors.red, size: 12)
                       : const SizedBox(width: 12),
-                  title: Text(user['name'] ?? 'Unknown'),
+                  title: Text(user['fullName'] ?? 'Unknown'),
                 );
               },
             ),
