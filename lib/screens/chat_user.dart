@@ -36,6 +36,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
     };
 
     await FirebaseFirestore.instance.collection('messengers').add(message);
+    _scrollToBottom();
   }
 
   Future<void> _sendMessage() async {
@@ -51,6 +52,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
 
     await FirebaseFirestore.instance.collection('messengers').add(message);
     _controller.clear();
+    _scrollToBottom();
 
     FirebaseFirestore.instance
         .collection('users')
@@ -59,16 +61,22 @@ class _UserChatScreenState extends State<UserChatScreen> {
   }
 
   void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
+    if (_scrollController.hasClients) {
+      final currentPosition = _scrollController.position.pixels;
+      final maxScroll = _scrollController.position.maxScrollExtent;
+
+      if (currentPosition < maxScroll) {
         _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
+          maxScroll,
+          duration: Duration(
+            milliseconds: (100 + ((maxScroll - currentPosition) * 0.2)).clamp(100, 600).toInt(),
+          ),
           curve: Curves.easeOut,
         );
       }
-    });
+    }
   }
+
 
   Widget _buildMessage(Map<String, dynamic> message) {
     final isMe = message['from'] == idUser;
@@ -123,6 +131,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
                 }
 
                 final docs = snapshot.data!.docs;
+
                 final List<Map<String, dynamic>> liveMessages = docs.map((doc) {
                   final data = doc.data() as Map<String, dynamic>;
 
@@ -148,12 +157,15 @@ class _UserChatScreenState extends State<UserChatScreen> {
                   }
                 }).whereType<Map<String, dynamic>>().toList();
 
-                WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
-
                 return ListView.builder(
                   controller: _scrollController,
                   itemCount: liveMessages.length,
                   itemBuilder: (context, index) {
+                    if (index == liveMessages.length - 1) {
+                      Future.delayed(
+                          const Duration(milliseconds: 100), _scrollToBottom);
+                    }
+
                     return _buildMessage(liveMessages[index]);
                   },
                 );
@@ -177,7 +189,8 @@ class _UserChatScreenState extends State<UserChatScreen> {
                       hintText: 'Nhập tin nhắn...',
                       border: OutlineInputBorder(),
                       isDense: true,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     ),
                   ),
                 ),

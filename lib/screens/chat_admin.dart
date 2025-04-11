@@ -126,6 +126,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty || selectedUserId == null) return;
 
+    // Tạo message mới
     final message = {
       "from": idAdmin,
       "to": selectedUserId,
@@ -133,17 +134,10 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
       "timestamp": DateTime.now().toIso8601String()
     };
 
+    // Gửi message vào Firestore mà không thay đổi danh sách tin nhắn trong setState
     await FirebaseFirestore.instance.collection('messengers').add(message);
 
-    setState(() {
-      messages.add({
-        "from": idAdmin,
-        "type": "text",
-        "data": text,
-        "timestamp": message["timestamp"]
-      });
-    });
-
+    // Cập nhật trạng thái 'isReply' cho user
     await FirebaseFirestore.instance
         .collection('users')
         .doc(selectedUserId)
@@ -151,7 +145,9 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
 
     _controller.clear();
     _scrollToBottom();
-    _loadUsers(); // Cập nhật trạng thái đã trả lời
+
+    // Không gọi lại _loadMessages() ở đây nữa vì tin nhắn đã được gửi, _listenForNewMessages đã lắng nghe.
+    _loadUsers(); // Cập nhật trạng thái người dùng đã trả lời
   }
 
   void _onUserTap(String userId) {
@@ -218,6 +214,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Admin - Tin nhắn")),
+
       body: Row(
         children: [
           // Sidebar
@@ -270,12 +267,10 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                           decoration: const InputDecoration(
                             hintText: 'Nhập tin nhắn...',
                             border: OutlineInputBorder(),
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            contentPadding: EdgeInsets.all(8),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
                       IconButton(
                         icon: const Icon(Icons.send),
                         onPressed: _sendMessage,
