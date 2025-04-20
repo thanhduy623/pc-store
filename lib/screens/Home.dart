@@ -2,7 +2,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'profile_screen.dart';
 import 'chat_user.dart';
-
+import 'CartPage.dart';
+import 'OrderListPage_User.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,8 +25,8 @@ class _HomeScreenState extends State<HomeScreen> {
   // List of screens to navigate to for each bottom navigation item.
   final List<Widget> _screens = [
     const HomeScreenContent(), // Home Screen content
-    const ProfileScreen(),     // Profile screen content
-    UserChatScreen(),        // Chat screen content
+    const ProfileScreen(), // Profile screen content
+    UserChatScreen(), // Chat screen content
   ];
 
   @override
@@ -52,6 +53,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     MaterialPageRoute(builder: (_) => const ProfileScreen()),
                   );
                   break;
+                case 'cart':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CartPage()),
+                  );
+                  break;
+                case 'orders':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const OrderListPage()),
+                  );
+                  break;
                 case 'chat_user':
                   Navigator.push(
                     context,
@@ -64,38 +77,59 @@ class _HomeScreenState extends State<HomeScreen> {
                   break;
               }
             },
-            itemBuilder: (context) => [
-              PopupMenuItem<String>(
-                value: 'profile',
-                child: Row(
-                  children: const [
-                    Icon(Icons.person),
-                    SizedBox(width: 8),
-                    Text('Hồ sơ cá nhân'),
-                  ],
-                ),
-              ),
-              PopupMenuItem<String>(
-                value: 'chat_user',
-                child: Row(
-                  children: const [
-                    Icon(Icons.chat),
-                    SizedBox(width: 8),
-                    Text('Tư vấn sản phẩm'),
-                  ],
-                ),
-              ),
-              PopupMenuItem<String>(
-                value: 'logout',
-                child: Row(
-                  children: const [
-                    Icon(Icons.logout),
-                    SizedBox(width: 8),
-                    Text('Đăng xuất'),
-                  ],
-                ),
-              ),
-            ],
+            itemBuilder:
+                (context) => [
+                  PopupMenuItem<String>(
+                    value: 'profile',
+                    child: Row(
+                      children: const [
+                        Icon(Icons.person),
+                        SizedBox(width: 8),
+                        Text('Hồ sơ cá nhân'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'cart',
+                    child: Row(
+                      children: const [
+                        Icon(Icons.person),
+                        SizedBox(width: 8),
+                        Text('Giỏ hàng của tôi'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'orders',
+                    child: Row(
+                      children: const [
+                        Icon(Icons.person),
+                        SizedBox(width: 8),
+                        Text('Đơn hàng của tôi'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'chat_user',
+                    child: Row(
+                      children: const [
+                        Icon(Icons.chat),
+                        SizedBox(width: 8),
+                        Text('Tư vấn sản phẩm'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'logout',
+                    child: Row(
+                      children: const [
+                        Icon(Icons.logout),
+                        SizedBox(width: 8),
+                        Text('Đăng xuất'),
+                      ],
+                    ),
+                  ),
+                ],
           ),
         ],
       ),
