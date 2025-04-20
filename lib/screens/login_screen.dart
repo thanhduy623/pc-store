@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // For Firestore
-import 'package:my_store/screens/chat_admin.dart'; // Import your AdminChatScreen
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:my_store/screens/chat_admin.dart';
+import 'package:my_store/screens/home.dart';
 import '../services/firebase/auth_service.dart';
-import 'Home.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -20,7 +20,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _obscurePassword = true;
 
-  // Đăng nhập bằng email + mật khẩu
   void login() async {
     String email = emailController.text.trim();
     final password = passwordController.text.trim();
@@ -32,7 +31,6 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // Check and fix email format if needed
     if (!isValidEmail(email)) {
       email = "$email@gmail.com";
     }
@@ -40,20 +38,21 @@ class _LoginScreenState extends State<LoginScreen> {
     final user = await _auth.signIn(email, password);
 
     if (user != null) {
-      // Fetch role from Firestore after login
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final userDoc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
 
       if (userDoc.exists) {
-        final role = userDoc.data()?['role']; // Assuming 'role' is stored in Firestore
+        final role = userDoc.data()?['role'];
 
-        // Navigate to Admin Chat Screen if role is "Admin"
         if (role == "Admin") {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const AdminChatScreen()),
           );
         } else {
-          // Navigate to Home Screen for other roles
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const HomeScreen()),
@@ -65,20 +64,19 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Đăng nhập thất bại")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Đăng nhập thất bại")));
     }
   }
 
-  // Helper function to validate email format
   bool isValidEmail(String email) {
-    // Regular expression to check if the email is valid
-    final emailRegExp = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    final emailRegExp = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
     return emailRegExp.hasMatch(email);
   }
 
-  // Khôi phục mật khẩu
   void resetPassword() async {
     final email = emailController.text.trim();
     if (email.isEmpty) {
@@ -94,18 +92,29 @@ class _LoginScreenState extends State<LoginScreen> {
         const SnackBar(content: Text("Đã gửi email khôi phục mật khẩu")),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi: $e")));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Lỗi: $e")));
     }
   }
 
-  // Đăng nhập bằng Google
   void loginWithGoogle() async {
     final user = await _auth.signInWithGoogle();
     if (user != null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
+      final tokenResult = await user.getIdTokenResult();
+      final isAdmin = tokenResult.claims?['admin'] == true;
+
+      if (isAdmin) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminChatScreen()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Đăng nhập Google thất bại")),
@@ -133,10 +142,7 @@ class _LoginScreenState extends State<LoginScreen> {
               TextField(
                 controller: emailController,
                 decoration: const InputDecoration(labelText: 'Email'),
-                // Khi nhấn Enter, tự động gọi login()
-                onSubmitted: (value) {
-                  login();
-                },
+                onSubmitted: (_) => login(),
               ),
               const SizedBox(height: 10),
               TextField(
@@ -157,10 +163,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     },
                   ),
                 ),
-                // Khi nhấn Enter, tự động gọi login()
-                onSubmitted: (value) {
-                  login();
-                },
+                onSubmitted: (_) => login(),
               ),
               Align(
                 alignment: Alignment.centerRight,
@@ -182,10 +185,12 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 10),
               TextButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                  );
+                },
                 child: const Text('Chưa có tài khoản? Đăng ký'),
               ),
             ],
