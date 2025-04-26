@@ -30,6 +30,110 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     const AdminChatScreen(),
   ];
 
+  Future<int> _getTotalUsers() async {
+    final snapshot = await FirebaseFirestore.instance.collection('users').get();
+    return snapshot.size;
+  }
+
+  Future<int> _getNewUsersThisMonth() async {
+    final now = DateTime.now();
+    final startOfMonth = DateTime(now.year, now.month, 1);
+    final snapshot =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .where(
+              'createdAt',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth),
+            )
+            .get();
+    return snapshot.size;
+  }
+
+  Future<int> _getTotalOrders() async {
+    final snapshot =
+        await FirebaseFirestore.instance.collection('orders').get();
+    return snapshot.size;
+  }
+
+  Future<double> _getTotalRevenue() async {
+    final snapshot =
+        await FirebaseFirestore.instance
+            .collection('orders')
+            .where('status', isEqualTo: 'completed')
+            .get();
+    double total = 0;
+    for (var doc in snapshot.docs) {
+      total += (doc.data()['total'] ?? 0).toDouble();
+    }
+    return total;
+  }
+
+  Widget _buildDashboard() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Thống kê tổng quan',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+          FutureBuilder<int>(
+            future: _getTotalUsers(),
+            builder:
+                (context, snapshot) => Card(
+                  child: ListTile(
+                    title: const Text('Tổng người dùng'),
+                    subtitle: Text(
+                      snapshot.hasData ? snapshot.data.toString() : '...',
+                    ),
+                  ),
+                ),
+          ),
+          FutureBuilder<int>(
+            future: _getNewUsersThisMonth(),
+            builder:
+                (context, snapshot) => Card(
+                  child: ListTile(
+                    title: const Text('Người dùng mới trong tháng'),
+                    subtitle: Text(
+                      snapshot.hasData ? snapshot.data.toString() : '...',
+                    ),
+                  ),
+                ),
+          ),
+          FutureBuilder<int>(
+            future: _getTotalOrders(),
+            builder:
+                (context, snapshot) => Card(
+                  child: ListTile(
+                    title: const Text('Tổng đơn hàng'),
+                    subtitle: Text(
+                      snapshot.hasData ? snapshot.data.toString() : '...',
+                    ),
+                  ),
+                ),
+          ),
+          FutureBuilder<double>(
+            future: _getTotalRevenue(),
+            builder:
+                (context, snapshot) => Card(
+                  child: ListTile(
+                    title: const Text('Doanh thu'),
+                    subtitle: Text(
+                      snapshot.hasData
+                          ? '${snapshot.data!.toStringAsFixed(0)} đ'
+                          : '...',
+                    ),
+                  ),
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -107,12 +211,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       ),
       body:
           _selectedIndex == 0
-              ? Column(
-                children: [
-                  _buildCategoryDropdown(),
-                  _buildFilterOptions(),
-                  Expanded(child: _buildProductList()),
-                ],
+              ? SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _buildDashboard(),
+                    _buildCategoryDropdown(),
+                    _buildFilterOptions(),
+                    const SizedBox(height: 10),
+                    SizedBox(height: 400, child: _buildProductList()),
+                  ],
+                ),
               )
               : _screens[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
@@ -225,8 +333,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     return StreamBuilder<QuerySnapshot>(
       stream: query.snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
 
         final products = snapshot.data!.docs;
 
