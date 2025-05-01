@@ -4,7 +4,7 @@ import 'package:my_store/screens/chat_admin.dart';
 import 'CountAccount.dart';
 import 'profile_screen.dart';
 import 'DiscountManagerPage.dart';
-import 'OrderListPage.dart';
+import 'OrderListPage_Admin.dart';
 
 class HomeScreenAdmin extends StatefulWidget {
   const HomeScreenAdmin({super.key});
