@@ -7,6 +7,7 @@ import 'package:my_store/services/firebase/firestore_service.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:my_store/utils/sendOrderMail.dart';
 
 FirestoreService _firestoreService = FirestoreService();
 
@@ -724,6 +725,14 @@ class _ConfirmOrderPageState extends State<ConfirmOrderPage> {
         const SnackBar(content: Text("Đơn hàng đã được xác nhận")),
       );
 
+      //Gửi mail
+      sendEmailViaEmailJS(
+        emailController.text.trim(),
+        nameController.text.trim(),
+        order,
+      );
+
+      //Cập nhật điểm
       updateUserPointsIfExists();
     } catch (e) {
       print("Lỗi khi lưu đơn hàng: $e");
