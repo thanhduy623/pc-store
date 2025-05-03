@@ -42,10 +42,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (user != null) {
       // Fetch role from Firestore after login
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final userDoc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
 
       if (userDoc.exists) {
-        final role = userDoc.data()?['role']; // Assuming 'role' is stored in Firestore
+        final role =
+            userDoc.data()?['role']; // Assuming 'role' is stored in Firestore
 
         // Navigate to Admin Chat Screen if role is "Admin"
         if (role == "Admin") {
@@ -66,16 +71,18 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Đăng nhập thất bại")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Đăng nhập thất bại")));
     }
   }
 
   // Helper function to validate email format
   bool isValidEmail(String email) {
     // Regular expression to check if the email is valid
-    final emailRegExp = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    final emailRegExp = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
     return emailRegExp.hasMatch(email);
   }
 
@@ -95,7 +102,9 @@ class _LoginScreenState extends State<LoginScreen> {
         const SnackBar(content: Text("Đã gửi email khôi phục mật khẩu")),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi: $e")));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Lỗi: $e")));
     }
   }
 
@@ -183,10 +192,11 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 10),
               TextButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                ),
+                onPressed:
+                    () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                    ),
                 child: const Text('Chưa có tài khoản? Đăng ký'),
               ),
             ],

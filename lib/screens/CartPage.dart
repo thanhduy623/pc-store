@@ -1,87 +1,154 @@
 import 'dart:convert';
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_slidable/flutter_slidable.dart';
-import 'package:my_store/utils/moneyFormat.dart';
-import 'package:my_store/screens/ConfirmOrderPage.dart';
-import 'package:my_store/services/firebase/firestore_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:my_store/models/cart_item.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:my_store/models/product.dart';
+import 'package:my_store/screens/ConfirmOrderPage.dart';
+import 'package:my_store/services/firebase/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:my_store/screens/LoginDialog.dart';
+import 'package:my_store/utils/moneyFormat.dart'
+    as utils; // Dùng tiền tố 'utils'
 
 class CartPage extends StatefulWidget {
-  const CartPage({super.key});
+  const CartPage({Key? key}) : super(key: key);
 
   @override
-  State<CartPage> createState() => _CartPageState();
+  _CartPageState createState() => _CartPageState();
 }
 
 class _CartPageState extends State<CartPage> {
-  final userId = FirebaseAuth.instance.currentUser?.email;
-  FirestoreService fb = FirestoreService();
-  List<CartItem> listItems = []; // Change to List<CartItem> type
+  List<Product> listItems = [];
+  final AuthService _auth = AuthService();
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadCart();
   }
 
-  Future<void> _loadData() async {
-    try {
-      if (userId != null) {
-        // Logged in, fetch data from Firebase
-        List<Map<String, dynamic>> data = await fb.getDataWithExactMatch(
-          "carts",
-          {"userId": userId},
-        );
+  Future<void> _loadCart() async {
+    final prefs = await SharedPreferences.getInstance();
+    List<String> savedItems = prefs.getStringList('localCart') ?? [];
 
-        setState(() {
-          // Safely convert Map<String, dynamic> to CartItem
-          listItems = data.map((item) => CartItem.fromMap(item)).toList();
-        });
-      } else {
-        // Not logged in, fetch from local storage
-        final prefs = await SharedPreferences.getInstance();
-        String? cartListJson = prefs.getString('cartList');
-
-        if (cartListJson != null) {
-          List<dynamic> cartList = jsonDecode(cartListJson);
-          setState(() {
-            // Safely convert Map<String, dynamic> to CartItem
-            listItems = cartList.map((item) => CartItem.fromMap(item)).toList();
-          });
-        }
-      }
-    } catch (e) {
-      print("Error loading cart data: $e");
-      setState(() {
-        listItems = []; // In case of error, ensure we display an empty list
-      });
-    }
+    setState(() {
+      listItems =
+          savedItems.map((item) => Product.fromJson(jsonDecode(item))).toList();
+    });
   }
 
-  // Toggle the selection state of a product
+  Future<void> _saveCart() async {
+    final prefs = await SharedPreferences.getInstance();
+    List<String> encodedItems =
+        listItems.map((item) => jsonEncode(item.toJson())).toList();
+    await prefs.setStringList('localCart', encodedItems);
+  }
+
+  int getTotalProducts() {
+    return listItems.where((item) => item.selected).length;
+  }
+
+  double getSubtotal() {
+    return listItems.fold(
+      0.0,
+      (sum, item) => sum + (item.price * item.quantity),
+    );
+  }
+
   void _toggleSelection(int index) {
     setState(() {
       listItems[index].selected = !listItems[index].selected;
     });
+    _saveCart();
   }
 
-  // Remove the item from cart
+  void _updateQuantity(int index, int newQuantity) {
+    setState(() {
+      listItems[index].quantity = newQuantity;
+    });
+    _saveCart();
+  }
+
   void _removeItem(int index) {
     setState(() {
       listItems.removeAt(index);
     });
+    _saveCart();
   }
 
-  // Calculate total products and subtotal
-  int getTotalProducts() {
-    return listItems.fold(0, (sum, item) => sum + item.quantity);
+  void _handleCheckout() async {
+    User? user = FirebaseAuth.instance.currentUser;
+    List<Product> selectedProducts = getSelectedProducts();
+
+    if (selectedProducts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Vui lòng chọn ít nhất một sản phẩm")),
+      );
+      return;
+    }
+
+    if (user != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder:
+              (context) => ConfirmPage(
+                selectedProducts: selectedProducts,
+                userEmail: user.email,
+              ),
+        ),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Đăng nhập để tích điểm?'),
+            content: const Text(
+              'Bạn có muốn đăng nhập để tích điểm cho đơn hàng này không?',
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (context) => ConfirmPage(
+                            selectedProducts: selectedProducts,
+                            userEmail: null,
+                          ),
+                    ),
+                  );
+                },
+                child: const Text('Không'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _showLoginDialog();
+                },
+                child: const Text('Có'),
+              ),
+            ],
+          );
+        },
+      );
+    }
   }
 
-  double getSubtotal() {
-    return listItems.fold(0.0, (sum, item) => sum + item.price * item.quantity);
+  void _showLoginDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return const LoginDialog();
+      },
+    );
+  }
+
+  List<Product> getSelectedProducts() {
+    return listItems.where((item) => item.selected).toList();
   }
 
   @override
@@ -97,17 +164,10 @@ class _CartPageState extends State<CartPage> {
                   child: Column(
                     children: [
                       ListView.builder(
-                        shrinkWrap:
-                            true, // Prevents ListView from taking too much space
+                        shrinkWrap: true,
                         itemCount: listItems.length,
                         itemBuilder: (context, index) {
                           final item = listItems[index];
-                          final price = item.price;
-                          final quantity = item.quantity;
-                          final name = item.name;
-                          final image = item.image;
-                          final selected = item.selected;
-
                           return Slidable(
                             child: Container(
                               padding: const EdgeInsets.all(8.0),
@@ -119,26 +179,21 @@ class _CartPageState extends State<CartPage> {
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Column 1: Checkbox
                                   Checkbox(
-                                    value: selected,
-                                    onChanged: (bool? value) {
-                                      _toggleSelection(index);
-                                    },
+                                    value: item.selected,
+                                    onChanged:
+                                        (value) => _toggleSelection(index),
                                   ),
-                                  // Column 2: Image (100x100)
-                                  image.isNotEmpty
+                                  item.image.isNotEmpty
                                       ? Image.memory(
-                                        base64Decode(image),
+                                        base64Decode(item.image),
                                         width: 100,
                                         height: 100,
-                                        fit: BoxFit.cover,
                                       )
                                       : const Icon(
                                         Icons.image_not_supported,
                                         size: 100,
                                       ),
-                                  // Column 3: Name, Price, Quantity
                                   Expanded(
                                     child: Padding(
                                       padding: const EdgeInsets.symmetric(
@@ -149,39 +204,36 @@ class _CartPageState extends State<CartPage> {
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            name,
+                                            item.name,
                                             style: const TextStyle(
                                               fontSize: 18,
                                               fontWeight: FontWeight.bold,
                                             ),
                                           ),
                                           Text(
-                                            'Đơn giá: ${moneyFormat(price)}',
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                            ),
+                                            'Đơn giá: ${utils.moneyFormat(item.price)}',
                                           ),
                                           Row(
                                             children: [
                                               IconButton(
                                                 icon: const Icon(Icons.remove),
                                                 onPressed: () {
-                                                  if (quantity > 1) {
-                                                    setState(() {
-                                                      listItems[index]
-                                                          .quantity--;
-                                                    });
+                                                  if (item.quantity > 0) {
+                                                    _updateQuantity(
+                                                      index,
+                                                      item.quantity - 1,
+                                                    );
                                                   }
                                                 },
                                               ),
-                                              Text('$quantity'),
+                                              Text('${item.quantity}'),
                                               IconButton(
                                                 icon: const Icon(Icons.add),
-                                                onPressed: () {
-                                                  setState(() {
-                                                    listItems[index].quantity++;
-                                                  });
-                                                },
+                                                onPressed:
+                                                    () => _updateQuantity(
+                                                      index,
+                                                      item.quantity + 1,
+                                                    ),
                                               ),
                                             ],
                                           ),
@@ -189,14 +241,11 @@ class _CartPageState extends State<CartPage> {
                                       ),
                                     ),
                                   ),
-                                  // Column 4: Total Price and Delete Button
                                   Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
                                       Text(
-                                        '${moneyFormat(price * quantity)}',
+                                        '${utils.moneyFormat(item.price * item.quantity)}',
                                         style: const TextStyle(
-                                          fontSize: 18,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
@@ -205,9 +254,7 @@ class _CartPageState extends State<CartPage> {
                                           Icons.delete,
                                           color: Colors.red,
                                         ),
-                                        onPressed: () {
-                                          _removeItem(index);
-                                        },
+                                        onPressed: () => _removeItem(index),
                                       ),
                                     ],
                                   ),
@@ -227,7 +274,6 @@ class _CartPageState extends State<CartPage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Column 1: Total Products and Subtotal
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -236,35 +282,13 @@ class _CartPageState extends State<CartPage> {
                     style: const TextStyle(fontSize: 10),
                   ),
                   Text(
-                    'Tạm tính: ${moneyFormat(getSubtotal())}',
+                    'Tạm tính: ${utils.moneyFormat(getSubtotal())}',
                     style: const TextStyle(fontSize: 14),
                   ),
                 ],
               ),
-              // Column 2: Pay Now Button
               ElevatedButton(
-                onPressed: () {
-                  // Filter selected items (checkbox == true)
-                  List<CartItem> selectedItems =
-                      listItems.where((item) => item.selected).toList();
-
-                  if (selectedItems.isNotEmpty) {
-                    // Navigate to ConfirmOrderPage with selected items
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (context) =>
-                                ConfirmOrderPage(selectedItems: selectedItems),
-                      ),
-                    );
-                  } else {
-                    // Show message if no items are selected
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Chưa chọn sản phẩm!')),
-                    );
-                  }
-                },
+                onPressed: _handleCheckout,
                 child: const Text('Thanh toán ngay'),
               ),
             ],

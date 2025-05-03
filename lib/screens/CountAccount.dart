@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 
@@ -10,8 +9,9 @@ class AmountScreen extends StatefulWidget {
 }
 
 class _AmountScreenState extends State<AmountScreen> {
-  final DatabaseReference _databaseRef = FirebaseDatabase.instance
-      .refFromURL('https://my-store-fb27a-default-rtdb.firebaseio.com/'); // Đặt URL Firebase Realtime Database
+  final DatabaseReference _databaseRef = FirebaseDatabase.instance.refFromURL(
+    'https://my-store-fb27a-default-rtdb.firebaseio.com/',
+  ); // Đặt URL Firebase Realtime Database
 
   int _amount = 0; // Biến lưu giá trị amount
 
@@ -28,7 +28,9 @@ class _AmountScreenState extends State<AmountScreen> {
       final data = event.snapshot.value;
       if (data != null && data is Map) {
         setState(() {
-          _amount = data['amount'] ?? 0; // Cập nhật giá trị _amount khi dữ liệu thay đổi
+          _amount =
+              data['amount'] ??
+              0; // Cập nhật giá trị _amount khi dữ liệu thay đổi
         });
       }
     });
@@ -56,7 +58,11 @@ class _AmountScreenState extends State<AmountScreen> {
               const SizedBox(height: 10),
               Text(
                 '$_amount', // Hiển thị giá trị amount
-                style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.blue),
+                style: TextStyle(
+                  fontSize: 40,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
               ),
             ],
           ),

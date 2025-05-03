@@ -4,8 +4,9 @@ import 'package:my_store/screens/Home.dart';
 import 'package:my_store/screens/profile_screen.dart';
 import 'package:my_store/screens/register_screen.dart';
 import '../services/firebase/firebase_options.dart';
-import 'screens/login_screen.dart';
+import 'package:my_store/screens/test.dart';
 import 'package:my_store/screens/CartPage.dart';
+import 'screens/login_screen.dart';
 
 bool isTesting = true;
 
@@ -23,13 +24,14 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'My Store',
       debugShowCheckedModeBanner: false,
-      initialRoute: isTesting ? '/test' : '/login',
+      initialRoute: '/login', // Giữ trang mặc định là /login
       routes: {
-        '/test': (_) => CartPage(),
+        '/test': (_) => AddToCartScreen(),
         '/login': (_) => LoginScreen(),
         '/register': (_) => RegisterScreen(),
         '/home': (_) => HomeScreen(),
         '/profile': (_) => ProfileScreen(),
+        '/cart': (_) => CartPage(),
       },
     );
   }

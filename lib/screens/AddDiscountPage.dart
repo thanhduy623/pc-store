@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:my_store/services/firebase/firestore_service.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 class AddDiscountPage extends StatefulWidget {
@@ -48,8 +49,8 @@ class _AddDiscountPageState extends State<AddDiscountPage> {
 
     // Kiểm tra giá trị giảm giá (Phần trăm hoặc Số tiền)
     double value = double.tryParse(valueController.text.trim()) ?? 0;
-    if (selectedValueType == 'Phần trăm' && (value < 0 || value > 100)) {
-      _showMessage("Giá trị phần trăm phải nằm trong khoảng từ 0 đến 100.");
+    if (selectedValueType == 'Phần trăm' && (value < 0 || value > 50)) {
+      _showMessage("Giá trị phần trăm phải nằm trong khoảng từ 0 đến 50.");
       return;
     } else if (selectedValueType == 'Số tiền' && value < 0) {
       _showMessage("Giá trị giảm tiền không được âm.");
@@ -59,9 +60,9 @@ class _AddDiscountPageState extends State<AddDiscountPage> {
     Map<String, dynamic> discount = {
       'code': codeController.text.trim(),
       'type': selectedType,
-      'expiry': DateFormat('dd/MM/yyyy').format(expiryDate!),
+      'expiry': expiryDate, // Lưu expiry như DateTime
       'valueType': selectedValueType,
-      'value': valueController.text.trim(),
+      'value': value, // Sử dụng double cho value
       'createdAt': FieldValue.serverTimestamp(),
     };
 
@@ -186,9 +187,12 @@ class _AddDiscountPageState extends State<AddDiscountPage> {
                 const SizedBox(height: 12),
 
                 // Giá trị giảm
-                TextField(
+                TextFormField(
                   controller: valueController,
-                  keyboardType: TextInputType.number,
+                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                  ],
                   decoration: InputDecoration(
                     labelText:
                         selectedValueType == 'Phần trăm'
