@@ -704,7 +704,7 @@ class _ConfirmOrderPageState extends State<ConfirmOrderPage> {
         'vat': (subtotal - discountFromPoints - discountFromCode) * vat,
         'total': total,
         'orderDate': DateTime.now(),
-        'status': 'Chờ xử lí',
+        'status': {'Chờ xử lý': DateTime.now()},
         'items':
             widget.selectedItems.map((item) {
               return {

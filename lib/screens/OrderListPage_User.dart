@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class OrderListPage extends StatefulWidget {
   const OrderListPage({super.key});
@@ -8,36 +10,78 @@ class OrderListPage extends StatefulWidget {
 }
 
 class _OrderListPageState extends State<OrderListPage> {
-  List<Map<String, dynamic>> orders = [
-    {
-      'orderCode': 'ORD123',
-      'address': '1234 Elm Street, District 1, HCM City',
-      'totalAmount': 500000,
-      'orderDate': '2025-04-01',
-      'status': 'Pending',
-    },
-    {
-      'orderCode': 'ORD124',
-      'address': '4567 Oak Avenue, District 2, HCM City',
-      'totalAmount': 200000,
-      'orderDate': '2025-04-02',
-      'status': 'Confirmed',
-    },
-    {
-      'orderCode': 'ORD125',
-      'address': '7890 Pine Road, District 3, HCM City',
-      'totalAmount': 750000,
-      'orderDate': '2025-04-03',
-      'status': 'Shipping',
-    },
-    {
-      'orderCode': 'ORD126',
-      'address': '1357 Maple Boulevard, District 4, HCM City',
-      'totalAmount': 400000,
-      'orderDate': '2025-04-04',
-      'status': 'Delivered',
-    },
-  ];
+  List<Map<String, dynamic>> orders = [];
+
+  @override
+  void initState() {
+    super.initState();
+    loadOrders();
+  }
+
+  Future<void> loadOrders() async {
+    final userId = FirebaseAuth.instance.currentUser?.email;
+    if (userId == null) return;
+
+    try {
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('orders')
+              .where('email', isEqualTo: userId)
+              .get();
+
+      setState(() {
+        orders =
+            snapshot.docs.map((doc) {
+              final data = doc.data();
+              final orderDate =
+                  data['orderDate'] is Timestamp
+                      ? data['orderDate'].toDate().toString().split(' ')[0]
+                      : data['orderDate'].toString();
+
+              // Lấy thông tin chi tiết từ 'items' trong đơn hàng
+              final items =
+                  (data['items'] as List<dynamic>?)?.map((item) {
+                    return {
+                      'productName': item['productName'],
+                      'quantity': item['quantity'],
+                    };
+                  }).toList() ??
+                  [];
+
+              return {
+                'id': doc.id, // Mã đơn hàng là mã của document
+                'orderCode': doc.id, // Mã đơn hàng hiển thị là ID của document
+                'orderDate': orderDate,
+                'status': _getLatestStatus(data['status']),
+                'totalAmount': data['total']?.toDouble() ?? 0.0, // Tổng tiền
+                'items': items,
+              };
+            }).toList();
+      });
+    } catch (e) {
+      print('Error loading orders: $e');
+    }
+  }
+
+  String _getLatestStatus(Map<String, dynamic> status) {
+    if (status == null || status.isEmpty) return 'Unknown';
+
+    // Duyệt qua tất cả trạng thái và chọn trạng thái có Timestamp mới nhất
+    DateTime latestTimestamp = DateTime(1970); // Khởi tạo thời gian cũ nhất
+    String latestStatus = 'Unknown';
+
+    status.forEach((key, value) {
+      if (value is Timestamp) {
+        DateTime statusTime = value.toDate();
+        if (statusTime.isAfter(latestTimestamp)) {
+          latestTimestamp = statusTime;
+          latestStatus = key; // Cập nhật trạng thái mới nhất
+        }
+      }
+    });
+
+    return latestStatus;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,17 +113,19 @@ class _OrderListPageState extends State<OrderListPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Nơi nhận: ${order['address']}',
+                  'Ngày đặt: ${order['orderDate']}',
                   style: const TextStyle(fontSize: 14),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Tổng tiền: ${moneyFormat(order['totalAmount'])}',
-                  style: const TextStyle(fontSize: 14, color: Colors.green),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Ngày đặt: ${order['orderDate']}',
+                  'Tổng số tiền: ' +
+                      Text(
+                        moneyFormat(order['totalAmount']),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ), // In đậm số tiền
+                      ).data! +
+                      ' (${order['items'].length} Sản phẩm)',
                   style: const TextStyle(fontSize: 14),
                 ),
                 const SizedBox(height: 8),
@@ -87,6 +133,7 @@ class _OrderListPageState extends State<OrderListPage> {
                   'Trạng thái: ${order['status']}',
                   style: TextStyle(
                     fontSize: 14,
+                    fontWeight: FontWeight.bold, // In đậm trạng thái
                     color: _getStatusColor(order['status']),
                   ),
                 ),

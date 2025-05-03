@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class OrderListPage extends StatefulWidget {
   const OrderListPage({super.key});
@@ -8,43 +9,141 @@ class OrderListPage extends StatefulWidget {
 }
 
 class _OrderListPageState extends State<OrderListPage> {
-  List<Map<String, dynamic>> orders = [
-    {
-      'orderCode': 'ORD123',
-      'address': '1234 Elm Street, District 1, HCM City',
-      'totalAmount': 500000,
-      'orderDate': '2025-04-01',
-      'status': 'Pending',
-    },
-    {
-      'orderCode': 'ORD124',
-      'address': '4567 Oak Avenue, District 2, HCM City',
-      'totalAmount': 200000,
-      'orderDate': '2025-04-02',
-      'status': 'Confirmed',
-    },
-    {
-      'orderCode': 'ORD125',
-      'address': '7890 Pine Road, District 3, HCM City',
-      'totalAmount': 750000,
-      'orderDate': '2025-04-03',
-      'status': 'Shipping',
-    },
-    {
-      'orderCode': 'ORD126',
-      'address': '1357 Maple Boulevard, District 4, HCM City',
-      'totalAmount': 400000,
-      'orderDate': '2025-04-04',
-      'status': 'Delivered',
-    },
-  ];
+  List<Map<String, dynamic>> orders = [];
+
+  @override
+  void initState() {
+    super.initState();
+    loadOrders();
+  }
+
+  Future<void> loadOrders() async {
+    final snapshot =
+        await FirebaseFirestore.instance.collection('orders').get();
+
+    setState(() {
+      orders =
+          snapshot.docs.map((doc) {
+            return {
+              'id': doc.id,
+              'status': doc['status'],
+              'total': doc['total'],
+              'shippingAddress': doc['shippingAddress'],
+              'orderDate': doc['orderDate'],
+            };
+          }).toList();
+    });
+  }
+
+  Future<void> updateOrderStatus(
+    String orderId,
+    String currentStatus, {
+    bool isCancel = false,
+  }) async {
+    final orderRef = FirebaseFirestore.instance
+        .collection('orders')
+        .doc(orderId);
+    final currentOrder = orders.firstWhere((order) => order['id'] == orderId);
+    final statusMap = Map<String, dynamic>.from(currentOrder['status']);
+
+    if (statusMap.containsKey('Đã huỷ') && !isCancel) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Đơn hàng này đã bị huỷ, không thể cập nhật trạng thái.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final nextStatus = isCancel ? 'Đã huỷ' : _getNextStatus(currentStatus);
+
+    if (nextStatus != null) {
+      await orderRef.update({
+        'status': {...statusMap, nextStatus: Timestamp.now()},
+      });
+      await loadOrders(); // Load lại danh sách sau khi cập nhật
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Trạng thái không hợp lệ hoặc không thể lùi lại.'),
+        ),
+      );
+    }
+  }
+
+  String? _getNextStatus(String currentStatus) {
+    switch (currentStatus) {
+      case 'Chờ xử lý':
+        return 'Đã xác nhận';
+      case 'Đã xác nhận':
+        return 'Đang vận chuyển';
+      case 'Đang vận chuyển':
+        return 'Đã giao';
+      default:
+        return null;
+    }
+  }
+
+  String getLatestStatus(Map<String, dynamic> statusMap) {
+    String latestStatus = '';
+    Timestamp latestTime = Timestamp(0, 0);
+
+    statusMap.forEach((status, timestamp) {
+      if (timestamp is Timestamp && timestamp.compareTo(latestTime) > 0) {
+        latestStatus = status;
+        latestTime = timestamp;
+      }
+    });
+
+    return latestStatus;
+  }
+
+  String _getFirestoreStatusName(String status) {
+    switch (status) {
+      case 'Pending':
+        return 'Chờ xử lý';
+      case 'Confirmed':
+        return 'Đã xác nhận';
+      case 'Shipping':
+        return 'Đang vận chuyển';
+      case 'Delivered':
+        return 'Đã giao';
+      case 'Canceled':
+        return 'Đã huỷ';
+      default:
+        return '';
+    }
+  }
+
+  String moneyFormat(double amount) {
+    return '${amount.toStringAsFixed(0)}đ';
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'Chờ xử lý':
+        return Colors.orange;
+      case 'Đã xác nhận':
+        return Colors.blue;
+      case 'Đang vận chuyển':
+        return Colors.blueAccent;
+      case 'Đã giao':
+        return Colors.green;
+      case 'Đã huỷ':
+        return Colors.red;
+      default:
+        return Colors.black;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Danh sách đơn hàng')),
       body: DefaultTabController(
-        length: 4,
+        length: 5,
         child: Column(
           children: [
             const TabBar(
@@ -53,19 +152,57 @@ class _OrderListPageState extends State<OrderListPage> {
                 Tab(text: 'Đã xác nhận'),
                 Tab(text: 'Đang vận chuyển'),
                 Tab(text: 'Đã giao'),
+                Tab(text: 'Đã huỷ'),
               ],
             ),
             Expanded(
               child: TabBarView(
                 children: [
-                  // Pending Orders Tab
-                  _buildOrderList('Pending'),
-                  // Confirmed Orders Tab
-                  _buildOrderList('Confirmed'),
-                  // Shipping Orders Tab
-                  _buildOrderList('Shipping'),
-                  // Delivered Orders Tab
-                  _buildOrderList('Delivered'),
+                  OrderListTab(
+                    status: 'Pending',
+                    orders: orders,
+                    getLatestStatus: getLatestStatus,
+                    moneyFormat: moneyFormat,
+                    getStatusColor: _getStatusColor,
+                    updateOrderStatus: updateOrderStatus,
+                    getStatusLabel: _getFirestoreStatusName,
+                  ),
+                  OrderListTab(
+                    status: 'Confirmed',
+                    orders: orders,
+                    getLatestStatus: getLatestStatus,
+                    moneyFormat: moneyFormat,
+                    getStatusColor: _getStatusColor,
+                    updateOrderStatus: updateOrderStatus,
+                    getStatusLabel: _getFirestoreStatusName,
+                  ),
+                  OrderListTab(
+                    status: 'Shipping',
+                    orders: orders,
+                    getLatestStatus: getLatestStatus,
+                    moneyFormat: moneyFormat,
+                    getStatusColor: _getStatusColor,
+                    updateOrderStatus: updateOrderStatus,
+                    getStatusLabel: _getFirestoreStatusName,
+                  ),
+                  OrderListTab(
+                    status: 'Delivered',
+                    orders: orders,
+                    getLatestStatus: getLatestStatus,
+                    moneyFormat: moneyFormat,
+                    getStatusColor: _getStatusColor,
+                    updateOrderStatus: updateOrderStatus,
+                    getStatusLabel: _getFirestoreStatusName,
+                  ),
+                  OrderListTab(
+                    status: 'Canceled',
+                    orders: orders,
+                    getLatestStatus: getLatestStatus,
+                    moneyFormat: moneyFormat,
+                    getStatusColor: _getStatusColor,
+                    updateOrderStatus: updateOrderStatus,
+                    getStatusLabel: _getFirestoreStatusName,
+                  ),
                 ],
               ),
             ),
@@ -74,11 +211,42 @@ class _OrderListPageState extends State<OrderListPage> {
       ),
     );
   }
+}
 
-  Widget _buildOrderList(String status) {
-    // Filter orders by status
+class OrderListTab extends StatefulWidget {
+  final String status;
+  final List<Map<String, dynamic>> orders;
+  final String Function(Map<String, dynamic>) getLatestStatus;
+  final String Function(double) moneyFormat;
+  final Color Function(String) getStatusColor;
+  final void Function(String, String, {bool isCancel}) updateOrderStatus;
+  final String Function(String) getStatusLabel;
+
+  const OrderListTab({
+    super.key,
+    required this.status,
+    required this.orders,
+    required this.getLatestStatus,
+    required this.moneyFormat,
+    required this.getStatusColor,
+    required this.updateOrderStatus,
+    required this.getStatusLabel,
+  });
+
+  @override
+  State<OrderListTab> createState() => _OrderListTabState();
+}
+
+class _OrderListTabState extends State<OrderListTab> {
+  @override
+  Widget build(BuildContext context) {
+    final currentStatus = widget.getStatusLabel(widget.status);
     final filteredOrders =
-        orders.where((order) => order['status'] == status).toList();
+        widget.orders.where((order) {
+          final statusMap = Map<String, dynamic>.from(order['status']);
+          final latest = widget.getLatestStatus(statusMap);
+          return latest == currentStatus;
+        }).toList();
 
     if (filteredOrders.isEmpty) {
       return const Center(
@@ -90,6 +258,9 @@ class _OrderListPageState extends State<OrderListPage> {
       itemCount: filteredOrders.length,
       itemBuilder: (context, index) {
         final order = filteredOrders[index];
+        final statusMap = Map<String, dynamic>.from(order['status']);
+        final latestStatus = widget.getLatestStatus(statusMap);
+
         return Card(
           margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
           elevation: 4,
@@ -97,36 +268,53 @@ class _OrderListPageState extends State<OrderListPage> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Mã đơn hàng: ${order['orderCode']}',
+                  'Mã đơn hàng: ${order['id']}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
+                Text('Nơi nhận: ${order['shippingAddress']}'),
+                const SizedBox(height: 8),
                 Text(
-                  'Nơi nhận: ${order['address']}',
-                  style: const TextStyle(fontSize: 14),
+                  'Ngày đặt: ${order['orderDate'].toDate().toString().split(' ')[0]}',
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Tổng tiền: ${moneyFormat(order['totalAmount'])}',
-                  style: const TextStyle(fontSize: 14, color: Colors.green),
+                  'Tổng tiền: ${widget.moneyFormat(order['total'])}',
+                  style: const TextStyle(color: Colors.green),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Ngày đặt: ${order['orderDate']}',
-                  style: const TextStyle(fontSize: 14),
+                  'Trạng thái: $latestStatus',
+                  style: TextStyle(color: widget.getStatusColor(latestStatus)),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Trạng thái: ${order['status']}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: _getStatusColor(order['status']),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (latestStatus != 'Đã huỷ' && latestStatus != 'Đã giao')
+                      IconButton(
+                        icon: const Icon(Icons.arrow_forward),
+                        onPressed:
+                            () => widget.updateOrderStatus(
+                              order['id'],
+                              latestStatus,
+                            ),
+                      ),
+                    if (latestStatus != 'Đã huỷ' && latestStatus != 'Đã giao')
+                      IconButton(
+                        icon: const Icon(Icons.cancel),
+                        onPressed:
+                            () => widget.updateOrderStatus(
+                              order['id'],
+                              latestStatus,
+                              isCancel: true,
+                            ),
+                      ),
+                  ],
                 ),
               ],
             ),
@@ -134,26 +322,5 @@ class _OrderListPageState extends State<OrderListPage> {
         );
       },
     );
-  }
-
-  // Helper method to format currency
-  String moneyFormat(double amount) {
-    return '${amount.toStringAsFixed(0)}đ';
-  }
-
-  // Helper method to determine the color based on order status
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Pending':
-        return Colors.orange;
-      case 'Confirmed':
-        return Colors.blue;
-      case 'Shipping':
-        return Colors.blueAccent;
-      case 'Delivered':
-        return Colors.green;
-      default:
-        return Colors.black;
-    }
   }
 }
