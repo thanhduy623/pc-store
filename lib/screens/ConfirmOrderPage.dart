@@ -62,13 +62,37 @@ class _ConfirmPageState extends State<ConfirmPage> {
       return sum + (item.price * item.quantity);
     });
 
-    discountFromPoints = 0;
-    discountFromCode = 0;
+    shippingFee = Random().nextInt(51) * 1000.0; // phí ship ngẫu nhiên
+    double enteredPoints = double.tryParse(pointsController.text) ?? 0;
+    double maxTotalBeforeDiscount = subtotal + shippingFee;
 
-    double subtotalAfterDiscount =
-        subtotal - discountFromPoints - discountFromCode;
-    double vatAmount = subtotalAfterDiscount * vat;
-    total = subtotalAfterDiscount + vatAmount + shippingFee;
+    // Nếu mã giảm giá đã lớn hơn tổng cần thanh toán thì không dùng điểm
+    if (discountFromCode >= maxTotalBeforeDiscount) {
+      discountFromPoints = 0;
+      total = 0;
+      pointsController.text = '0';
+    } else {
+      double remainingAfterCode = maxTotalBeforeDiscount - discountFromCode;
+
+      // Nếu điểm nhập vào lớn hơn phần còn lại thì điều chỉnh lại
+      if (enteredPoints * 1000 > remainingAfterCode) {
+        double optimizedPoints = remainingAfterCode / 1000;
+        discountFromPoints = optimizedPoints * 1000;
+        pointsController.text = optimizedPoints.floor().toString();
+      } else {
+        discountFromPoints = enteredPoints * 1000;
+      }
+
+      double subtotalAfterDiscount =
+          subtotal - discountFromPoints - discountFromCode;
+      double vatAmount = subtotalAfterDiscount * vat;
+
+      total = subtotalAfterDiscount + vatAmount + shippingFee;
+
+      if (total < 0) total = 0;
+    }
+
+    setState(() {});
   }
 
   Future<void> _loadUserData() async {
@@ -91,6 +115,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
         nameController.text = userData['fullName'] ?? '';
         phoneController.text = userData['phone'] ?? '';
         addressController.text = address;
+
         setState(() {
           isEmailReadOnly = true;
           userPoints = userData['point'] ?? 0;
@@ -212,29 +237,80 @@ class _ConfirmPageState extends State<ConfirmPage> {
   Future<void> _checkEmailAndCreateAccount() async {
     try {
       final email = emailController.text.trim();
-      final password = phoneController.text.trim(); // Mặc định là số điện thoại
+      final password =
+          phoneController.text.trim(); // Tạm dùng số điện thoại làm mật khẩu
 
-      // Kiểm tra xem email đã tồn tại chưa
-      final authResult = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(email: email, password: password);
+      // Kiểm tra xem email đã tồn tại trong Firebase Auth chưa
+      List<String> signInMethods = await FirebaseAuth.instance
+          .fetchSignInMethodsForEmail(email);
 
-      if (authResult.user != null) {
-        // Sau khi đăng ký, thực hiện đăng nhập
-        await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Tạo tài khoản và đăng nhập thành công"),
-          ),
-        );
+      if (signInMethods.isEmpty) {
+        // Nếu chưa có tài khoản → tạo mới
+        final authResult = await FirebaseAuth.instance
+            .createUserWithEmailAndPassword(email: email, password: password);
+
+        if (authResult.user != null) {
+          // Đăng nhập ngay sau khi tạo
+          await FirebaseAuth.instance.signInWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+
+          // Lưu thông tin người dùng vào Firestore
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(authResult.user!.uid)
+              .set({
+                'email': email,
+                'fullName': nameController.text.trim(),
+                'phone': phoneController.text.trim(),
+                'shippingAddress': addressController.text.trim(),
+                'point': 0,
+                'createdAt': Timestamp.now(),
+              });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                "Tạo tài khoản thành công, mật khẩu là số điện thoại của bạn",
+              ),
+            ),
+          );
+        }
+      } else {
+        // Nếu email đã tồn tại, đăng nhập ngay
+        final authResult = await FirebaseAuth.instance
+            .signInWithEmailAndPassword(email: email, password: password);
+
+        if (authResult.user != null) {
+          // Lấy thông tin người dùng từ Firestore nếu cần
+          DocumentSnapshot userDoc =
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(authResult.user?.uid)
+                  .get();
+
+          if (userDoc.exists) {
+            Map<String, dynamic> userData =
+                userDoc.data() as Map<String, dynamic>;
+            // Bạn có thể làm gì đó với dữ liệu người dùng nếu cần
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Đăng nhập thành công, tiếp tục đặt hàng"),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Đăng nhập thất bại, vui lòng kiểm tra thông tin"),
+            ),
+          );
+        }
       }
     } catch (e) {
-      print("Error during user creation or login: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Đã xảy ra lỗi khi tạo tài khoản")),
-      );
+      print("Lỗi khi tạo hoặc đăng nhập tài khoản: $e");
     }
   }
 
@@ -267,6 +343,53 @@ class _ConfirmPageState extends State<ConfirmPage> {
 
     // Sau khi đăng nhập hoặc tạo tài khoản, lưu đơn hàng
     await _saveOrder();
+  }
+
+  Future<bool> _validateDiscountCode() async {
+    String discountCode = discountCodeController.text.trim();
+    if (discountCode.isEmpty)
+      return false; // Nếu không có mã giảm giá, trả false
+
+    try {
+      // Truy cập trực tiếp document theo ID (ID là chính là mã giảm giá)
+      DocumentSnapshot doc =
+          await FirebaseFirestore.instance
+              .collection('discounts')
+              .doc(discountCode) // Mã giảm giá là ID của document
+              .get();
+
+      if (doc.exists) {
+        Map<String, dynamic> discountData = doc.data() as Map<String, dynamic>;
+
+        // Kiểm tra type và expiry
+        if (discountData['type'] == 'Khuyến mãi' &&
+            (discountData['expiry'] as Timestamp).toDate().isAfter(
+              DateTime.now(),
+            )) {
+          discountFromCode = discountData['value'] ?? 0;
+          setState(() {});
+          return true; // Mã giảm giá hợp lệ
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Mã giảm giá không hợp lệ hoặc đã hết hạn"),
+            ),
+          );
+          return false; // Mã giảm giá không hợp lệ
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Không tìm thấy mã giảm giá")),
+        );
+        return false; // Không tìm thấy mã giảm giá
+      }
+    } catch (e) {
+      print("Error validating discount code: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Đã xảy ra lỗi khi kiểm tra mã giảm giá")),
+      );
+      return false; // Lỗi xảy ra khi kiểm tra
+    }
   }
 
   // Build step 1 content (Recipient information)
@@ -334,7 +457,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
         TextField(
           controller: discountCodeController,
           decoration: const InputDecoration(
-            hintText: "Nhập mã giảm giá (ví dụ: IT-50)",
+            hintText: "Nhập mã giảm giá (ví dụ: IT50)",
           ),
         ),
       ],
@@ -346,8 +469,6 @@ class _ConfirmPageState extends State<ConfirmPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Tóm tắt đơn hàng"),
-        // Display selected products and order summary
         Column(
           children:
               widget.selectedProducts
@@ -361,11 +482,6 @@ class _ConfirmPageState extends State<ConfirmPage> {
                     ),
                   )
                   .toList(),
-        ),
-        const Divider(),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [const Text("Tổng cộng: "), Text(moneyFormat(total))],
         ),
       ],
     );
@@ -393,13 +509,88 @@ class _ConfirmPageState extends State<ConfirmPage> {
       appBar: AppBar(title: const Text("Xác nhận đơn hàng")),
       body: Stepper(
         currentStep: _currentStep,
-        onStepContinue: () {
-          if (_currentStep < 2) {
+        onStepContinue: () async {
+          if (_currentStep == 0) {
+            // Kiểm tra dữ liệu bước 1
+            final email = emailController.text.trim();
+            final name = nameController.text.trim();
+            final address = addressController.text.trim();
+            final phone = phoneController.text.trim();
+
+            final emailValid = RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(email);
+            final phoneValid = RegExp(r'^0\d{9}$').hasMatch(phone); // 0 + 9 số
+
+            if (email.isEmpty ||
+                name.isEmpty ||
+                address.isEmpty ||
+                phone.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Vui lòng điền đầy đủ thông tin")),
+              );
+              return;
+            }
+
+            if (!emailValid) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Email không hợp lệ")),
+              );
+              return;
+            }
+
+            if (!phoneValid) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("Số điện thoại không hợp lệ (0XXXXXXXXX)"),
+                ),
+              );
+              return;
+            }
+
+            setState(() {
+              _currentStep++;
+            });
+          } else if (_currentStep == 1) {
+            // Lấy điểm người dùng đã nhập
+            double enteredPoints =
+                double.tryParse(pointsController.text.trim()) ?? 0;
+
+            // Tối ưu điểm: chỉ dùng phần cần thiết
+            double maxUsablePoints = subtotal + shippingFee - discountFromCode;
+            if (maxUsablePoints < 0) maxUsablePoints = 0;
+
+            if (enteredPoints > userPoints) {
+              enteredPoints = userPoints;
+            }
+            if (enteredPoints > maxUsablePoints) {
+              enteredPoints = maxUsablePoints;
+            }
+
+            discountFromPoints = enteredPoints;
+
+            // Cập nhật lại điểm đã tối ưu (nếu người dùng nhập quá mức cần thiết)
+            pointsController.text = discountFromPoints.toStringAsFixed(0);
+
+            // Kiểm tra mã giảm giá nếu có nhập
+            if (discountCodeController.text.trim().isNotEmpty) {
+              bool isValid = await _validateDiscountCode();
+
+              if (!isValid) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Mã giảm giá không hợp lệ")),
+                );
+                return; // Dừng lại, không cho qua bước 3
+              }
+            }
+
+            // Tính lại tổng
+            _calculateOrderDetails();
+
             setState(() {
               _currentStep++;
             });
           } else {
-            _processOrder();
+            // Bước xác nhận đơn hàng
+            await _processOrder();
           }
         },
         onStepCancel: () {
@@ -409,16 +600,53 @@ class _ConfirmPageState extends State<ConfirmPage> {
             });
           }
         },
+        controlsBuilder: (BuildContext context, ControlsDetails details) {
+          String continueText;
+          switch (_currentStep) {
+            case 0:
+              continueText = "Tiếp theo";
+              break;
+            case 1:
+              continueText = "Áp dụng";
+              break;
+            case 2:
+              continueText = "Xác nhận";
+              break;
+            default:
+              continueText = "Tiếp tục";
+          }
+
+          return Row(
+            children: <Widget>[
+              ElevatedButton(
+                onPressed: details.onStepContinue,
+                child: Text(continueText),
+              ),
+              const SizedBox(width: 8),
+              if (_currentStep > 0)
+                OutlinedButton(
+                  onPressed: details.onStepCancel,
+                  child: const Text("Quay lại"),
+                ),
+            ],
+          );
+        },
         steps: [
           Step(
             title: const Text("Thông tin nhận hàng"),
             content: _buildStep1(),
+            isActive: _currentStep >= 0,
           ),
           Step(
             title: const Text("Sử dụng điểm & mã giảm giá"),
             content: _buildStep2(),
+            isActive: _currentStep >= 1,
           ),
-          Step(title: const Text("Xem lại đơn hàng"), content: _buildStep3()),
+          Step(
+            title: const Text("Xem lại đơn hàng"),
+            content: _buildStep3(),
+            isActive: _currentStep >= 2,
+          ),
         ],
       ),
       bottomNavigationBar: Container(
@@ -437,12 +665,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
               "-${moneyFormat(discountFromCode)}",
             ),
             _buildSummaryRow("Phí vận chuyển", moneyFormat(shippingFee)),
-            _buildSummaryRow(
-              "VAT (8%)",
-              moneyFormat(
-                (subtotal - discountFromPoints - discountFromCode) * vat,
-              ),
-            ),
+            _buildSummaryRow("VAT (8%)", moneyFormat(subtotal * vat)),
             const Divider(),
             _buildSummaryRow("Tổng cộng", moneyFormat(total), bold: true),
           ],

@@ -113,15 +113,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   // Save user data to Firestore
   Future<void> saveUserData(String uid) async {
+    String address =
+        "${addressController.text.trim()}, "
+        "${_selectedWard?['name'] ?? ''}, "
+        "${_selectedDistrict?['name'] ?? ''}, "
+        "${_selectedProvince?['name'] ?? ''}";
+
     try {
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
         'email': emailController.text.trim(),
         'fullName': nameController.text.trim(),
         'phone': phoneController.text.trim(),
-        'shippingAddress': addressController.text.trim(),
-        'province': _selectedProvince?['name'] ?? '',
-        'district': _selectedDistrict?['name'] ?? '',
-        'ward': _selectedWard?['name'] ?? '',
+        'shippingAddress': address,
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {

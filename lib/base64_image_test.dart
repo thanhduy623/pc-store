@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import 'package:my_store/utils/controllPicture.dart';
 
-import 'package:image_picker_web/image_picker_web.dart';
-
 void main() {
   runApp(const MaterialApp(home: Base64TestScreen()));
 }
