@@ -115,45 +115,72 @@ class _DiscountManagerPageState extends State<DiscountManagerPage> {
               ? const Center(child: CircularProgressIndicator())
               : Padding(
                 padding: const EdgeInsets.all(16),
-                child: ListView.builder(
+                child: GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 250, // Card rộng tối đa 200
+                    mainAxisExtent: 150, // Card cao đúng 100
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
                   itemCount: discounts.length,
                   itemBuilder: (context, index) {
                     final item = discounts[index];
                     return Card(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      elevation: 5,
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.all(16),
-                        title: Text(
-                          item['code'],
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Column(
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text("Loại: ${item['type']}"),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    item['code'],
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                  ),
+                                  onPressed:
+                                      () => _deleteDiscount(item['code']),
+                                  iconSize: 18,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
                             Text(
-                              "Giá trị: ${item['value']}${item['valueType'] == 'Phần trăm' ? '%' : 'đ'}",
+                              "Hết hạn: ${_formatDate(item['expiry'])}",
+                              style: const TextStyle(fontSize: 12),
                             ),
                             Text(
-                              "Ngày hết hạn: ${_formatDate(item['expiry'])}",
+                              "Loại: ${item['type']}",
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            Text(
+                              "Giá trị: ${item['value']}%",
+                              style: const TextStyle(fontSize: 12),
                             ),
                           ],
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _deleteDiscount(item['code']),
                         ),
                       ),
                     );
                   },
                 ),
               ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _navigateToAdd,
-        child: const Icon(Icons.add),
-        tooltip: 'Thêm mã mới',
-      ),
     );
   }
 }

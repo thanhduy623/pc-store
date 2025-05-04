@@ -348,47 +348,91 @@ class _ConfirmPageState extends State<ConfirmPage> {
   Future<bool> _validateDiscountCode() async {
     String discountCode = discountCodeController.text.trim();
     if (discountCode.isEmpty)
-      return false; // Nếu không có mã giảm giá, trả false
+      return false; // If there's no discount code, return false
 
     try {
-      // Truy cập trực tiếp document theo ID (ID là chính là mã giảm giá)
+      // Access the document by the discount code (which is the document ID)
       DocumentSnapshot doc =
           await FirebaseFirestore.instance
               .collection('discounts')
-              .doc(discountCode) // Mã giảm giá là ID của document
+              .doc(discountCode) // The discount code is the document ID
               .get();
 
       if (doc.exists) {
         Map<String, dynamic> discountData = doc.data() as Map<String, dynamic>;
 
-        // Kiểm tra type và expiry
-        if (discountData['type'] == 'Khuyến mãi' &&
-            (discountData['expiry'] as Timestamp).toDate().isAfter(
-              DateTime.now(),
-            )) {
-          discountFromCode = discountData['value'] ?? 0;
+        // Check if the discount is still valid based on expiry date
+        DateTime expiryDate = (discountData['expiry'] as Timestamp).toDate();
+        if (expiryDate.isBefore(DateTime.now())) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Mã giảm giá đã hết hạn")),
+          );
+          return false; // If the discount is expired
+        }
+
+        // Apply the discount based on the type
+        if (discountData['type'] == 'Khuyến mãi') {
+          // Apply a percentage discount to the subtotal
+          discountFromCode = subtotal * (discountData['value'] ?? 0) / 100;
           setState(() {});
-          return true; // Mã giảm giá hợp lệ
+          return true; // If it's a general promotion, apply the discount
+        } else if (discountData['type'] == 'Mặt hàng') {
+          // If it's a product-specific discount, check if the product is in the cart
+          String productId = discountData['productId'];
+          bool productFound = false;
+          double productDiscount = 0;
+
+          for (var product in widget.selectedProducts) {
+            if (product.id == productId) {
+              productFound = true;
+              // Calculate discount as price * quantity * value / 100 (percentage discount)
+              productDiscount =
+                  product.price *
+                  product.quantity *
+                  (discountData['value'] ?? 0) /
+                  100;
+              break; // We found the product, no need to check further
+            }
+          }
+
+          if (productFound) {
+            // If the product is found, apply the calculated discount
+            discountFromCode = productDiscount;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  "Giảm giá cho sản phẩm: ${widget.selectedProducts.firstWhere((p) => p.id == productId).name}",
+                ),
+              ),
+            );
+            setState(() {});
+            return true;
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Không có sản phẩm áp dụng mã giảm"),
+              ),
+            );
+            return false; // If no product matching the discount code is found
+          }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Mã giảm giá không hợp lệ hoặc đã hết hạn"),
-            ),
+            const SnackBar(content: Text("Mã giảm giá không hợp lệ")),
           );
-          return false; // Mã giảm giá không hợp lệ
+          return false; // If the discount type is invalid
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Không tìm thấy mã giảm giá")),
         );
-        return false; // Không tìm thấy mã giảm giá
+        return false; // If the discount code doesn't exist
       }
     } catch (e) {
       print("Error validating discount code: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Đã xảy ra lỗi khi kiểm tra mã giảm giá")),
       );
-      return false; // Lỗi xảy ra khi kiểm tra
+      return false; // Error occurred during validation
     }
   }
 
@@ -575,9 +619,6 @@ class _ConfirmPageState extends State<ConfirmPage> {
               bool isValid = await _validateDiscountCode();
 
               if (!isValid) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Mã giảm giá không hợp lệ")),
-                );
                 return; // Dừng lại, không cho qua bước 3
               }
             }

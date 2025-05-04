@@ -52,33 +52,23 @@ class _AddDiscountPageState extends State<AddDiscountPage> {
     if (selectedValueType == 'Phần trăm' && (value < 0 || value > 50)) {
       _showMessage("Giá trị phần trăm phải nằm trong khoảng từ 0 đến 50.");
       return;
-    } else if (selectedValueType == 'Số tiền' && value < 0) {
-      _showMessage("Giá trị giảm tiền không được âm.");
-      return;
     }
 
     Map<String, dynamic> discount = {
       'code': codeController.text.trim(),
+      'expiry': expiryDate,
       'type': selectedType,
-      'expiry': expiryDate, // Lưu expiry như DateTime
-      'valueType': selectedValueType,
-      'value': value, // Sử dụng double cho value
+      'value': value,
       'createdAt': FieldValue.serverTimestamp(),
     };
 
     // Thêm các trường khác tuỳ vào loại giảm giá
     if (selectedType == 'Mặt hàng') {
       if (itemController.text.isEmpty) {
-        _showMessage("Tên sản phẩm không được trống.");
+        _showMessage("Mã sản phẩm không được trống.");
         return;
       }
-      discount['item'] = itemController.text.trim();
-    } else if (selectedType == 'Nhóm hàng') {
-      if (categoryController.text.isEmpty) {
-        _showMessage("Nhóm hàng không được trống.");
-        return;
-      }
-      discount['category'] = categoryController.text.trim();
+      discount['productId'] = itemController.text.trim();
     }
 
     try {
@@ -158,29 +148,13 @@ class _AddDiscountPageState extends State<AddDiscountPage> {
                   value: selectedType,
                   decoration: const InputDecoration(labelText: "Loại giảm giá"),
                   items:
-                      const ['Khuyến mãi', 'Mặt hàng', 'Nhóm hàng'].map((type) {
+                      const ['Khuyến mãi', 'Mặt hàng'].map((type) {
                         return DropdownMenuItem(value: type, child: Text(type));
                       }).toList(),
                   onChanged: (value) {
                     setState(() {
                       selectedType = value!;
                       valueController.clear();
-                    });
-                  },
-                ),
-                const SizedBox(height: 12),
-
-                // Loại giảm giá theo phần trăm hoặc số tiền
-                DropdownButtonFormField<String>(
-                  value: selectedValueType,
-                  decoration: const InputDecoration(labelText: "Giảm theo"),
-                  items:
-                      const ['Phần trăm', 'Số tiền'].map((type) {
-                        return DropdownMenuItem(value: type, child: Text(type));
-                      }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      selectedValueType = value!;
                     });
                   },
                 ),
@@ -193,12 +167,7 @@ class _AddDiscountPageState extends State<AddDiscountPage> {
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
                   ],
-                  decoration: InputDecoration(
-                    labelText:
-                        selectedValueType == 'Phần trăm'
-                            ? "Giảm (%)"
-                            : "Giảm (VNĐ)",
-                  ),
+                  decoration: InputDecoration(labelText: "Giảm (%)"),
                 ),
                 const SizedBox(height: 20),
 
@@ -206,18 +175,8 @@ class _AddDiscountPageState extends State<AddDiscountPage> {
                 if (selectedType == 'Mặt hàng')
                   TextField(
                     controller: itemController,
-                    decoration: const InputDecoration(
-                      labelText: "Tên sản phẩm",
-                    ),
+                    decoration: const InputDecoration(labelText: "Mã sản phẩm"),
                   ),
-                if (selectedType == 'Nhóm hàng')
-                  TextField(
-                    controller: categoryController,
-                    decoration: const InputDecoration(labelText: "Nhóm hàng"),
-                  ),
-
-                const SizedBox(height: 20),
-
                 // Gửi mã giảm giá
                 ElevatedButton(onPressed: _submit, child: const Text("Gửi")),
               ],

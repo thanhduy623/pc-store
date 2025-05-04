@@ -13,10 +13,10 @@ class AddToCartScreen extends StatelessWidget {
   Map<String, dynamic> createSampleProduct() {
     const sampleImage = ''; // base64 nếu cần
     return {
-      'id': 'sp001',
+      'id': 'wdYBkb6LB1d446QkXeU6',
       'selected': false,
       'name': 'Sản phẩm demo',
-      'productCode': 'CODE123',
+      'productId': 'wdYBkb6LB1d446QkXeU6',
       'quantity': 1,
       'price': 199000.0,
       'image': sampleImage,
