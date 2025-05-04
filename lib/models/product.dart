@@ -1,8 +1,8 @@
 // lib/models/product.dart
 class Product {
   String id;
+  String productId;
   String name;
-  String productCode;
   int quantity;
   double price;
   String image;
@@ -10,8 +10,8 @@ class Product {
 
   Product({
     required this.id,
+    required this.productId,
     required this.name,
-    required this.productCode,
     required this.quantity,
     required this.price,
     required this.image,
@@ -21,8 +21,8 @@ class Product {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'productId': productId,
       'name': name,
-      'productCode': productCode,
       'quantity': quantity,
       'price': price,
       'image': image,
@@ -33,8 +33,8 @@ class Product {
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
       id: json['id'] ?? '',
+      productId: json['productId'] ?? '',
       name: json['name'] ?? '',
-      productCode: json['productCode'] ?? '',
       quantity: json['quantity'] ?? 1,
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
       image: json['image'] ?? '',

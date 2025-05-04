@@ -372,8 +372,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
 
         // Apply the discount based on the type
         if (discountData['type'] == 'Khuyến mãi') {
-          // Apply a percentage discount to the subtotal
-          discountFromCode = subtotal * (discountData['value'] ?? 0) / 100;
+          discountFromCode = discountData['value'] ?? 0;
           setState(() {});
           return true; // If it's a general promotion, apply the discount
         } else if (discountData['type'] == 'Mặt hàng') {
@@ -383,14 +382,14 @@ class _ConfirmPageState extends State<ConfirmPage> {
           double productDiscount = 0;
 
           for (var product in widget.selectedProducts) {
-            if (product.id == productId) {
+            if (product.productId == productId) {
               productFound = true;
               // Calculate discount as price * quantity * value / 100 (percentage discount)
               productDiscount =
-                  product.price *
-                  product.quantity *
-                  (discountData['value'] ?? 0) /
-                  100;
+                  (product.price *
+                      product.quantity *
+                      (discountData['value'] ?? 0) /
+                      100);
               break; // We found the product, no need to check further
             }
           }
@@ -401,7 +400,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  "Giảm giá cho sản phẩm: ${widget.selectedProducts.firstWhere((p) => p.id == productId).name}",
+                  "Giảm giá cho sản phẩm: ${widget.selectedProducts.firstWhere((p) => p.productId == productId).name}",
                 ),
               ),
             );

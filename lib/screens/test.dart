@@ -1,132 +1,40 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+// Import your addProductToCart function
+import 'package:my_store/controllers/addProductToCart.dart';
 
 class AddToCartScreen extends StatelessWidget {
   const AddToCartScreen({super.key});
 
   String? get userId => FirebaseAuth.instance.currentUser?.email;
 
-  // ✅ Tạo sản phẩm demo đúng định dạng CartItem
-  Map<String, dynamic> createSampleProduct() {
-    const sampleImage = ''; // base64 nếu cần
-    return {
-      'id': 'wdYBkb6LB1d446QkXeU6',
-      'selected': false,
-      'name': 'Sản phẩm demo',
-      'productId': 'wdYBkb6LB1d446QkXeU6',
-      'quantity': 1,
-      'price': 199000.0,
-      'image': sampleImage,
-    };
-  }
-
-  // ✅ Thêm sản phẩm vào Firestore
-  Future<void> addToFirestoreCart(BuildContext context) async {
-    if (userId == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("❌ Chưa đăng nhập")));
-      return;
-    }
-
-    final cartRef = FirebaseFirestore.instance.collection('carts');
-    final newItem = createSampleProduct();
-
-    try {
-      final snapshot = await cartRef.where('userId', isEqualTo: userId).get();
-
-      if (snapshot.docs.isNotEmpty) {
-        final doc = snapshot.docs.first;
-        final existingItems = List<Map<String, dynamic>>.from(doc['cartItems']);
-
-        // Kiểm tra trùng ID sản phẩm
-        final index = existingItems.indexWhere(
-          (item) => item['id'] == newItem['id'],
-        );
-        if (index != -1) {
-          // Nếu đã tồn tại thì tăng số lượng
-          existingItems[index]['quantity'] += 1;
-        } else {
-          existingItems.add(newItem);
-        }
-
-        await cartRef.doc(doc.id).update({'cartItems': existingItems});
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ Đã thêm vào giỏ hàng hiện tại")),
-        );
-      } else {
-        await cartRef.add({
-          'userId': userId,
-          'cartItems': [newItem],
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("🛒 Đã tạo giỏ hàng mới và thêm sản phẩm"),
-          ),
-        );
-      }
-    } catch (e) {
-      print("Lỗi khi thêm sản phẩm: $e");
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("❌ Lỗi: $e")));
-    }
-  }
-
-  // ✅ Lưu sản phẩm vào local (SharedPreferences)
-  Future<void> saveProductToLocal(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    final product = createSampleProduct();
-
-    List<String> currentList = prefs.getStringList('localCart') ?? [];
-    currentList.add(jsonEncode(product));
-
-    await prefs.setStringList('localCart', currentList);
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("📦 Sản phẩm đã lưu cục bộ")));
-  }
-
-  // ❌ Xoá toàn bộ sản phẩm local
-  Future<void> clearLocalCart(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('localCart');
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("🗑️ Đã xoá toàn bộ sản phẩm local")),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    // Define an image (this can be a URL or a base64 string or whatever you use)
+    String image =
+        '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'; // Ảnh đã chuyển sang base64
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Thêm vào giỏ hàng")),
+      appBar: AppBar(title: Text("Thêm vào giỏ hàng")),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             ElevatedButton.icon(
-              onPressed: () => addToFirestoreCart(context),
-              icon: const Icon(Icons.cloud_upload),
-              label: const Text("Thêm sản phẩm vào Firestore"),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: () => saveProductToLocal(context),
+              onPressed: () {
+                // Call addProductToCart with the specified parameters
+                addProductToCart(
+                  context,
+                  'wdYBkb6LB1d446QkXeU6',
+                  "Sản phẩm thử thôi nha",
+                  798000,
+                  image,
+                );
+              },
               icon: const Icon(Icons.save_alt),
-              label: const Text("Lưu sản phẩm vào local"),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: () => clearLocalCart(context),
-              icon: const Icon(Icons.delete_forever),
-              label: const Text("Xoá toàn bộ sản phẩm local"),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              label: const Text("Lưu sản phẩm vào giỏ hàng"),
             ),
           ],
         ),
