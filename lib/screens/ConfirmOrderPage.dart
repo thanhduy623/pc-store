@@ -131,7 +131,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
 
   Future<void> _saveOrder() async {
     try {
-      final order = {
+      final orderData = {
         'fullName': nameController.text.trim(),
         'phone': phoneController.text.trim(),
         'email': emailController.text.trim(),
@@ -156,10 +156,12 @@ class _ConfirmPageState extends State<ConfirmPage> {
             }).toList(),
       };
 
-      // Lưu đơn hàng vào Firestore
-      await FirebaseFirestore.instance.collection('orders').add(order);
+      // Tạo document mới và lấy ID
+      final docRef = await FirebaseFirestore.instance
+          .collection('orders')
+          .add(orderData);
+      final orderId = docRef.id;
 
-      // Sau khi lưu đơn hàng thành công, có thể đưa người dùng đến trang cảm ơn hoặc thông báo thành công
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Đơn hàng đã được xác nhận")),
       );
@@ -167,14 +169,23 @@ class _ConfirmPageState extends State<ConfirmPage> {
       // Cập nhật điểm
       updateUserPointsIfExists();
 
+      // Cập nhật mã giảm giá (nếu có nhập)
+      String discountCode = discountCodeController.text.trim();
+      if (discountCode.isNotEmpty) {
+        await updateDiscountCode(discountCode, orderId);
+      }
+
       // Gửi mail
       sendEmailViaEmailJS(
         emailController.text.trim(),
         nameController.text.trim(),
-        order,
+        {
+          ...orderData,
+          'orderId': orderId, // Gửi thêm mã đơn hàng qua mail
+        },
       );
 
-      // Xóa sản phẩm đã chọn trong đơn hàng
+      // Xóa giỏ hàng
       await _removeOrderedProductsFromCart();
     } catch (e) {
       print("Lỗi khi lưu đơn hàng: $e");
@@ -206,7 +217,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
                 : 0;
 
         // Tính điểm mới cộng thêm
-        double earnedPoints = total * 10 / 100;
+        double earnedPoints = (total * 10 / 100) / 1000;
         double usedPoints = double.tryParse(pointsController.text) ?? 0;
         double updatedPoints = currentPoints - usedPoints + earnedPoints;
 
@@ -231,6 +242,30 @@ class _ConfirmPageState extends State<ConfirmPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("Lỗi cập nhật điểm: $e")));
+    }
+  }
+
+  Future<void> updateDiscountCode(String discountCode, String orderId) async {
+    try {
+      DocumentReference discountRef = FirebaseFirestore.instance
+          .collection('discounts')
+          .doc(discountCode);
+
+      DocumentSnapshot doc = await discountRef.get();
+
+      if (doc.exists) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+
+        List<dynamic> listBill = data['listBill'] ?? [];
+
+        if (!listBill.contains(orderId)) {
+          listBill.add(orderId);
+
+          await discountRef.update({'listBill': listBill});
+        }
+      }
+    } catch (e) {
+      print("Lỗi khi cập nhật mã giảm giá: $e");
     }
   }
 
@@ -347,36 +382,77 @@ class _ConfirmPageState extends State<ConfirmPage> {
 
   Future<bool> _validateDiscountCode() async {
     String discountCode = discountCodeController.text.trim();
-    if (discountCode.isEmpty)
-      return false; // If there's no discount code, return false
+    if (discountCode.isEmpty) return false;
 
     try {
-      // Access the document by the discount code (which is the document ID)
       DocumentSnapshot doc =
           await FirebaseFirestore.instance
               .collection('discounts')
-              .doc(discountCode) // The discount code is the document ID
+              .doc(discountCode)
               .get();
 
       if (doc.exists) {
         Map<String, dynamic> discountData = doc.data() as Map<String, dynamic>;
 
-        // Check if the discount is still valid based on expiry date
-        DateTime expiryDate = (discountData['expiry'] as Timestamp).toDate();
-        if (expiryDate.isBefore(DateTime.now())) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Mã giảm giá đã hết hạn")),
-          );
-          return false; // If the discount is expired
+        DateTime? startDate;
+        DateTime? expiryDate;
+
+        if (discountData['startDate'] != null) {
+          startDate = (discountData['startDate'] as Timestamp).toDate();
         }
 
-        // Apply the discount based on the type
+        if (discountData['endDate'] != null) {
+          expiryDate = (discountData['endDate'] as Timestamp).toDate();
+        }
+
+        int quantity =
+            discountData['quantity'] - (discountData['listBill']?.length ?? 0);
+
+        if (startDate == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Ngày bắt đầu không hợp lệ")),
+          );
+          return false;
+        }
+
+        if (expiryDate == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Ngày hết hạn không hợp lệ")),
+          );
+          return false;
+        }
+
+        if (DateTime.now().isBefore(startDate) ||
+            DateTime.now().isAfter(expiryDate)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Mã giảm giá không thể áp dụng")),
+          );
+          return false;
+        }
+
+        if (quantity <= 0) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text("Đã hết mã giảm giá")));
+          return false;
+        }
+
+        double totalOrder = subtotal + shippingFee + vat;
+
         if (discountData['type'] == 'Khuyến mãi') {
-          discountFromCode = discountData['value'] ?? 0;
+          double calculatedDiscount = subtotal * discountData['value'] / 100;
+
+          if (calculatedDiscount >= totalOrder) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Mức giảm vượt quá tổng đơn hàng")),
+            );
+            return false;
+          }
+
+          discountFromCode = calculatedDiscount;
           setState(() {});
-          return true; // If it's a general promotion, apply the discount
+          return true;
         } else if (discountData['type'] == 'Mặt hàng') {
-          // If it's a product-specific discount, check if the product is in the cart
           String productId = discountData['productId'];
           bool productFound = false;
           double productDiscount = 0;
@@ -384,18 +460,27 @@ class _ConfirmPageState extends State<ConfirmPage> {
           for (var product in widget.selectedProducts) {
             if (product.productId == productId) {
               productFound = true;
-              // Calculate discount as price * quantity * value / 100 (percentage discount)
               productDiscount =
                   (product.price *
                       product.quantity *
                       (discountData['value'] ?? 0) /
                       100);
-              break; // We found the product, no need to check further
+              break;
             }
           }
 
           if (productFound) {
-            // If the product is found, apply the calculated discount
+            if (productDiscount >= totalOrder) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    "Không thể áp dụng mã giảm giá do vượt hạn mức",
+                  ),
+                ),
+              );
+              return false;
+            }
+
             discountFromCode = productDiscount;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -408,30 +493,28 @@ class _ConfirmPageState extends State<ConfirmPage> {
             return true;
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Không có sản phẩm áp dụng mã giảm"),
-              ),
+              const SnackBar(content: Text("Mã giảm giá không thể áp dụng")),
             );
-            return false; // If no product matching the discount code is found
+            return false;
           }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Mã giảm giá không hợp lệ")),
           );
-          return false; // If the discount type is invalid
+          return false;
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Không tìm thấy mã giảm giá")),
         );
-        return false; // If the discount code doesn't exist
+        return false;
       }
     } catch (e) {
       print("Error validating discount code: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Đã xảy ra lỗi khi kiểm tra mã giảm giá")),
       );
-      return false; // Error occurred during validation
+      return false;
     }
   }
 
