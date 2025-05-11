@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'category_screen.dart';
 import 'chat_admin.dart';
+import 'dashboard_widget.dart';
 import 'profile_screen.dart';
 import 'product_form_screen.dart';
 
@@ -69,69 +70,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 
   Widget _buildDashboard() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Thống kê tổng quan',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 10),
-          FutureBuilder<int>(
-            future: _getTotalUsers(),
-            builder:
-                (context, snapshot) => Card(
-                  child: ListTile(
-                    title: const Text('Tổng người dùng'),
-                    subtitle: Text(
-                      snapshot.hasData ? snapshot.data.toString() : '...',
-                    ),
-                  ),
-                ),
-          ),
-          FutureBuilder<int>(
-            future: _getNewUsersThisMonth(),
-            builder:
-                (context, snapshot) => Card(
-                  child: ListTile(
-                    title: const Text('Người dùng mới trong tháng'),
-                    subtitle: Text(
-                      snapshot.hasData ? snapshot.data.toString() : '...',
-                    ),
-                  ),
-                ),
-          ),
-          FutureBuilder<int>(
-            future: _getTotalOrders(),
-            builder:
-                (context, snapshot) => Card(
-                  child: ListTile(
-                    title: const Text('Tổng đơn hàng'),
-                    subtitle: Text(
-                      snapshot.hasData ? snapshot.data.toString() : '...',
-                    ),
-                  ),
-                ),
-          ),
-          FutureBuilder<double>(
-            future: _getTotalRevenue(),
-            builder:
-                (context, snapshot) => Card(
-                  child: ListTile(
-                    title: const Text('Doanh thu'),
-                    subtitle: Text(
-                      snapshot.hasData
-                          ? '${snapshot.data!.toStringAsFixed(0)} đ'
-                          : '...',
-                    ),
-                  ),
-                ),
-          ),
-        ],
-      ),
-    );
+    return const DashboardWidget();
   }
 
   @override
