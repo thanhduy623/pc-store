@@ -24,9 +24,9 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'My Store',
       debugShowCheckedModeBanner: false,
-      initialRoute: '/login', // Giữ trang mặc định là /login
+      initialRoute: '/home',
       routes: {
-        '/test': (_) => AddToCartScreen(),
+        '/test': (_) => Test(),
         '/login': (_) => LoginScreen(),
         '/register': (_) => RegisterScreen(),
         '/home': (_) => HomeScreen(),
