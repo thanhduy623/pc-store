@@ -10,15 +10,49 @@ class CategoryScreen extends StatefulWidget {
 
 class _CategoryScreenState extends State<CategoryScreen> {
   final TextEditingController _categoryController = TextEditingController();
+  final TextEditingController _attributeController = TextEditingController();
+  final FocusNode _attributeFocusNode = FocusNode();
+  List<String> _attributes = [];
+
+  void _addAttribute() {
+    final attr = _attributeController.text.trim();
+    if (attr.isNotEmpty && !_attributes.contains(attr)) {
+      setState(() {
+        _attributes.add(attr);
+      });
+      _attributeController.clear();
+      _attributeFocusNode.requestFocus();
+    }
+  }
+
+  void _removeAttribute(String attr) {
+    setState(() {
+      _attributes.remove(attr);
+    });
+  }
 
   void _addCategory() async {
     final name = _categoryController.text.trim();
-    if (name.isEmpty) return;
+    if (name.isEmpty || _attributes.isEmpty) {
+      // Kiểm tra nếu tên danh mục hoặc thuộc tính rỗng
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Tên danh mục và thuộc tính không thể rỗng"),
+        ),
+      );
+      return;
+    }
 
     await FirebaseFirestore.instance.collection('categories').add({
       'name': name,
+      'attributes': _attributes,
     });
+
     _categoryController.clear();
+    _attributeController.clear();
+    setState(() {
+      _attributes.clear();
+    });
   }
 
   void _deleteCategory(String id) async {
@@ -31,51 +65,88 @@ class _CategoryScreenState extends State<CategoryScreen> {
       appBar: AppBar(title: const Text("Quản lý danh mục")),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 600),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                const Text(
-                  "Thêm danh mục mới",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
+          constraints: const BoxConstraints(),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Bên trái: form tạo danh mục
+              Expanded(
+                flex: 1,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Thêm danh mục mới",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
                         controller: _categoryController,
                         decoration: const InputDecoration(
                           labelText: "Tên danh mục",
                           border: OutlineInputBorder(),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: _addCategory,
-                      icon: const Icon(Icons.add),
-                      label: const Text("Thêm"),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 16,
-                          horizontal: 20,
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _attributeController,
+                        onSubmitted: (_) => _addAttribute(),
+                        focusNode: _attributeFocusNode,
+                        decoration: const InputDecoration(
+                          labelText: "RAM, ROM, CPU,...",
+                          border: OutlineInputBorder(),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "Danh sách danh mục",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: _addAttribute,
+                        child: const Text("Thêm thuộc tính"),
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children:
+                            _attributes
+                                .map(
+                                  (attr) => Chip(
+                                    label: Text(attr),
+                                    onDeleted: () => _removeAttribute(attr),
+                                  ),
+                                )
+                                .toList(),
+                      ),
+                      const Spacer(),
+                      Center(
+                        child: ElevatedButton.icon(
+                          onPressed: _addCategory,
+                          icon: const Icon(Icons.save),
+                          label: const Text("Lưu danh mục"),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 14,
+                              horizontal: 24,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                Expanded(
+              ),
+
+              const VerticalDivider(width: 1),
+
+              // Bên phải: danh sách danh mục
+              Expanded(
+                flex: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
                   child: StreamBuilder<QuerySnapshot>(
                     stream:
                         FirebaseFirestore.instance
@@ -100,8 +171,30 @@ class _CategoryScreenState extends State<CategoryScreen> {
                         itemBuilder: (context, index) {
                           final doc = categories[index];
                           final name = doc['name'];
+                          final attributes = List<String>.from(
+                            doc['attributes'] ?? [],
+                          );
+
                           return ListTile(
-                            title: Text(name),
+                            title: Text(
+                              name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            subtitle:
+                                attributes.isNotEmpty
+                                    ? Wrap(
+                                      spacing: 8,
+                                      children:
+                                          attributes
+                                              .map(
+                                                (attr) =>
+                                                    Chip(label: Text(attr)),
+                                              )
+                                              .toList(),
+                                    )
+                                    : const Text("Không có thuộc tính"),
                             trailing: IconButton(
                               icon: const Icon(Icons.delete, color: Colors.red),
                               onPressed: () => _deleteCategory(doc.id),
@@ -112,8 +205,8 @@ class _CategoryScreenState extends State<CategoryScreen> {
                     },
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

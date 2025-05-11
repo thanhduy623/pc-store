@@ -7,8 +7,7 @@ import 'package:my_store/screens/ConfirmOrderPage.dart';
 import 'package:my_store/services/firebase/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:my_store/screens/LoginDialog.dart';
-import 'package:my_store/utils/moneyFormat.dart'
-    as utils; // Dùng tiền tố 'utils'
+import 'package:my_store/utils/moneyFormat.dart' as utils;
 
 class CartPage extends StatefulWidget {
   const CartPage({Key? key}) : super(key: key);

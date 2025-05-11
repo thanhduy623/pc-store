@@ -16,9 +16,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
-
   String? _selectedCategoryId;
   List<String> base64Images = [];
+  List<String> categoryAttributes = [];
 
   @override
   void initState() {
@@ -27,8 +27,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       _nameController.text = widget.productData!['name'] ?? '';
       _priceController.text = widget.productData!['price']?.toString() ?? '';
       _selectedCategoryId = widget.productData!['categoryId'];
-      if (widget.productData!['iimage'] != null) {
-        base64Images = List<String>.from(widget.productData!['iimage']);
+      if (widget.productData!['image'] != null) {
+        base64Images = List<String>.from(widget.productData!['image']);
       }
     }
   }
@@ -54,7 +54,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     final productData = {
       'name': _nameController.text.trim(),
       'price': double.tryParse(_priceController.text.trim()) ?? 0,
-      'iimage': base64Images,
+      'image': base64Images,
       'categoryId': _selectedCategoryId,
       'updatedAt': FieldValue.serverTimestamp(),
     };
@@ -70,6 +70,19 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     }
 
     Navigator.pop(context);
+  }
+
+  Future<void> _fetchCategoryAttributes() async {
+    if (_selectedCategoryId != null) {
+      final categoryDoc =
+          await FirebaseFirestore.instance
+              .collection('categories')
+              .doc(_selectedCategoryId)
+              .get();
+      setState(() {
+        categoryAttributes = List<String>.from(categoryDoc['attributes'] ?? []);
+      });
+    }
   }
 
   @override
@@ -114,6 +127,10 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                       ),
                   const SizedBox(height: 10),
                   _buildCategoryDropdown(),
+                  const SizedBox(height: 10),
+                  if (_selectedCategoryId != null) ...[
+                    _buildCategoryAttributes(),
+                  ],
                   const SizedBox(height: 10),
                   _buildImageSection(),
                   const SizedBox(height: 20),
@@ -169,11 +186,30 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           onChanged: (value) {
             setState(() {
               _selectedCategoryId = value;
+              _fetchCategoryAttributes();
             });
           },
           validator: (value) => value == null ? 'Vui lòng chọn danh mục' : null,
         );
       },
+    );
+  }
+
+  Widget _buildCategoryAttributes() {
+    if (categoryAttributes.isEmpty) return const SizedBox();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Thuộc tính của danh mục:",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        ...categoryAttributes.map((attr) {
+          return TextFormField(decoration: InputDecoration(labelText: attr));
+        }).toList(),
+      ],
     );
   }
 

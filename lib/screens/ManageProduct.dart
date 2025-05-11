@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'product_form_screen.dart';
+import 'package:my_store/utils/moneyFormat.dart';
+import 'package:my_store/utils/controllPicture.dart';
+import 'dart:typed_data';
 
 class ProductManagementScreen extends StatefulWidget {
   const ProductManagementScreen({super.key});
@@ -24,7 +27,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => ProductFormScreen()),
+                MaterialPageRoute(builder: (_) => const ProductFormScreen()),
               );
             },
           ),
@@ -54,7 +57,7 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
   }
 
   Widget _buildProductList() {
-    Query query = FirebaseFirestore.instance.collection('products');
+    final query = FirebaseFirestore.instance.collection('products');
 
     return StreamBuilder<QuerySnapshot>(
       stream: query.snapshots(),
@@ -80,20 +83,36 @@ class _ProductManagementScreenState extends State<ProductManagementScreen> {
             final doc = products[index];
             final data = doc.data() as Map<String, dynamic>;
 
+            final List<dynamic>? imageList =
+                data['image']; // Lưu ý: field 'image' (not 'images')
+            Uint8List? imageBytes;
+
+            if (imageList != null &&
+                imageList.isNotEmpty &&
+                imageList[0] is String) {
+              try {
+                imageBytes = Base64ImageTool.base64ToImage(imageList[0]);
+              } catch (e) {
+                print("❌ Lỗi giải mã ảnh: $e");
+              }
+            }
+
             return Card(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: ListTile(
                 leading:
-                    data['imageUrl'] != null
-                        ? Image.network(
-                          data['imageUrl'],
-                          width: 50,
-                          height: 50,
+                    imageBytes != null
+                        ? Image.memory(
+                          imageBytes,
+                          width: 100,
+                          height: 100,
                           fit: BoxFit.cover,
                         )
-                        : const Icon(Icons.image),
+                        : const Icon(Icons.image, size: 100),
                 title: Text(data['name'] ?? 'Không tên'),
-                subtitle: Text("Giá: ${data['price']} đ"),
+                subtitle: Text(
+                  "Giá: ${moneyFormat(data['price']?.toDouble() ?? 0)}",
+                ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
