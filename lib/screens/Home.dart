@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:my_store/screens/chat_admin.dart';
-import 'profile_screen.dart';
-import 'chat_user.dart';
-import 'category_screen.dart';
-import 'product_form_screen.dart'; // Trang thêm/sửa sản phẩm
+import 'package:my_store/screens/profile_screen.dart';
+import 'package:my_store/screens/chat_user.dart';
+import 'package:my_store/screens/CartPage.dart';
+import 'package:my_store/screens/OrderListPage_User.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,23 +16,14 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   String? _selectedCategoryId;
-  bool _isAdmin = false;
   String? _selectedFilter;
+  String? photoURL;
 
   @override
   void initState() {
     super.initState();
-    _checkAdmin();
-  }
-
-  Future<void> _checkAdmin() async {
     final user = FirebaseAuth.instance.currentUser;
-    final tokenResult = await user?.getIdTokenResult();
-    final isAdmin = tokenResult?.claims?['admin'] == true;
-
-    setState(() {
-      _isAdmin = isAdmin ?? false;
-    });
+    photoURL = user?.photoURL;
   }
 
   void _onItemTapped(int index) {
@@ -43,16 +33,26 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   final List<Widget> _screens = [
-    const SizedBox(), // Sẽ render theo index
+    const SizedBox(), // Trang chủ ở index 0 (sẽ xử lý riêng)
     const ProfileScreen(),
     UserChatScreen(),
   ];
+
+  PopupMenuItem<String> _buildMenuItem(
+    String value,
+    IconData icon,
+    String title,
+  ) {
+    return PopupMenuItem<String>(
+      value: value,
+      child: Row(children: [Icon(icon), const SizedBox(width: 8), Text(title)]),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final displayName = user?.displayName ?? 'Người dùng';
-    final photoURL = user?.photoURL;
 
     return Scaffold(
       appBar: AppBar(
@@ -60,7 +60,8 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           PopupMenuButton<String>(
             icon: CircleAvatar(
-              backgroundImage: photoURL != null ? NetworkImage(photoURL) : null,
+              backgroundImage:
+                  photoURL != null ? NetworkImage(photoURL!) : null,
               child: photoURL == null ? const Icon(Icons.person) : null,
             ),
             onSelected: (value) {
@@ -71,28 +72,24 @@ class _HomeScreenState extends State<HomeScreen> {
                     MaterialPageRoute(builder: (_) => const ProfileScreen()),
                   );
                   break;
-                case 'manage_categories':
+                case 'cart':
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const CategoryScreen()),
+                    MaterialPageRoute(builder: (_) => const CartPage()),
+                  );
+                  break;
+                case 'orders':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const OrderListPage()),
                   );
                   break;
                 case 'chat_user':
-                  if (_isAdmin) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const AdminChatScreen(),
-                      ),
-                    );
-                  } else {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => UserChatScreen()),
-                    );
-                  }
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => UserChatScreen()),
+                  );
                   break;
-
                 case 'logout':
                   FirebaseAuth.instance.signOut();
                   Navigator.pushReplacementNamed(context, '/login');
@@ -101,35 +98,15 @@ class _HomeScreenState extends State<HomeScreen> {
             },
             itemBuilder:
                 (context) => [
-                  const PopupMenuItem(
-                    value: 'profile',
-                    child: ListTile(
-                      leading: Icon(Icons.person),
-                      title: Text('Hồ sơ cá nhân'),
-                    ),
+                  _buildMenuItem('profile', Icons.person, 'Hồ sơ cá nhân'),
+                  _buildMenuItem(
+                    'cart',
+                    Icons.shopping_cart,
+                    'Giỏ hàng của tôi',
                   ),
-                  if (_isAdmin)
-                    const PopupMenuItem(
-                      value: 'manage_categories',
-                      child: ListTile(
-                        leading: Icon(Icons.category),
-                        title: Text('Quản lý danh mục'),
-                      ),
-                    ),
-                  const PopupMenuItem(
-                    value: 'chat_user',
-                    child: ListTile(
-                      leading: Icon(Icons.chat),
-                      title: Text('Tư vấn sản phẩm'),
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'logout',
-                    child: ListTile(
-                      leading: Icon(Icons.logout),
-                      title: Text('Đăng xuất'),
-                    ),
-                  ),
+                  _buildMenuItem('orders', Icons.list_alt, 'Đơn hàng của tôi'),
+                  _buildMenuItem('chat_user', Icons.chat, 'Tư vấn sản phẩm'),
+                  _buildMenuItem('logout', Icons.logout, 'Đăng xuất'),
                 ],
           ),
         ],
@@ -154,18 +131,6 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Tư vấn'),
         ],
       ),
-      floatingActionButton:
-          _isAdmin && _selectedIndex == 0
-              ? FloatingActionButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => ProductFormScreen()),
-                  );
-                },
-                child: const Icon(Icons.add),
-              )
-              : null,
     );
   }
 
@@ -289,38 +254,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         : const Icon(Icons.image),
                 title: Text(data['name'] ?? ''),
                 subtitle: Text("Giá: ${data['price'] ?? 0} đ"),
-                trailing:
-                    _isAdmin
-                        ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit, color: Colors.blue),
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder:
-                                        (_) => ProductFormScreen(
-                                          productId: doc.id,
-                                          productData: data,
-                                        ),
-                                  ),
-                                );
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () async {
-                                await FirebaseFirestore.instance
-                                    .collection('products')
-                                    .doc(doc.id)
-                                    .delete();
-                              },
-                            ),
-                          ],
-                        )
-                        : null,
               ),
             );
           },

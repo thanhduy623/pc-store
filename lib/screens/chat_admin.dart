@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -29,11 +28,12 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
 
   Future<void> _loadUsers() async {
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('messengers')
-          .where('to', isEqualTo: idAdmin)
-          .orderBy('timestamp', descending: true)
-          .get();
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('messengers')
+              .where('to', isEqualTo: idAdmin)
+              .orderBy('timestamp', descending: true)
+              .get();
 
       final usersSet = <String>{};
       for (var doc in snapshot.docs) {
@@ -41,11 +41,17 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
         if (fromUser != idAdmin) usersSet.add(fromUser);
       }
 
-      final users = await Future.wait(usersSet.map((userId) async {
-        final doc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
-        final data = doc.data();
-        return data != null ? {...data, 'id': userId} : null;
-      })).then((list) => list.whereType<Map<String, dynamic>>().toList());
+      final users = await Future.wait(
+        usersSet.map((userId) async {
+          final doc =
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(userId)
+                  .get();
+          final data = doc.data();
+          return data != null ? {...data, 'id': userId} : null;
+        }),
+      ).then((list) => list.whereType<Map<String, dynamic>>().toList());
 
       setState(() {
         usersList.clear();
@@ -59,25 +65,27 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
   Future<void> _loadMessages(String userId) async {
     final now = DateTime.now();
     final thirtyDaysAgo = now.subtract(Duration(days: 30));
-    final snapshot = await FirebaseFirestore.instance
-        .collection('messengers')
-        .where('timestamp', isGreaterThan: thirtyDaysAgo.toIso8601String())
-        .where('from', whereIn: [userId, idAdmin])
-        .where('to', whereIn: [userId, idAdmin])
-        .orderBy('timestamp')
-        .get();
+    final snapshot =
+        await FirebaseFirestore.instance
+            .collection('messengers')
+            .where('timestamp', isGreaterThan: thirtyDaysAgo.toIso8601String())
+            .where('from', whereIn: [userId, idAdmin])
+            .where('to', whereIn: [userId, idAdmin])
+            .orderBy('timestamp')
+            .get();
 
-    final loadedMessages = snapshot.docs.map((doc) {
-      final data = doc.data();
-      if (data['image'] != null) {
-        data['type'] = 'image';
-        data['data'] = base64Decode(data['image']);
-      } else {
-        data['type'] = 'text';
-        data['data'] = data['text'] ?? '';
-      }
-      return data;
-    }).toList();
+    final loadedMessages =
+        snapshot.docs.map((doc) {
+          final data = doc.data();
+          if (data['image'] != null) {
+            data['type'] = 'image';
+            data['data'] = base64Decode(data['image']);
+          } else {
+            data['type'] = 'text';
+            data['data'] = data['text'] ?? '';
+          }
+          return data;
+        }).toList();
 
     setState(() {
       messages.clear();
@@ -101,25 +109,26 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
         .orderBy('timestamp')
         .snapshots()
         .listen((snapshot) {
-      final newMessages = snapshot.docs.map((doc) {
-        final data = doc.data();
-        if (data['image'] != null) {
-          data['type'] = 'image';
-          data['data'] = base64Decode(data['image']);
-        } else {
-          data['type'] = 'text';
-          data['data'] = data['text'] ?? '';
-        }
-        return data;
-      }).toList();
+          final newMessages =
+              snapshot.docs.map((doc) {
+                final data = doc.data();
+                if (data['image'] != null) {
+                  data['type'] = 'image';
+                  data['data'] = base64Decode(data['image']);
+                } else {
+                  data['type'] = 'text';
+                  data['data'] = data['text'] ?? '';
+                }
+                return data;
+              }).toList();
 
-      setState(() {
-        messages.clear();
-        messages.addAll(newMessages);
-      });
+          setState(() {
+            messages.clear();
+            messages.addAll(newMessages);
+          });
 
-      _scrollToBottom();
-    });
+          _scrollToBottom();
+        });
   }
 
   Future<void> _sendMessage() async {
@@ -131,7 +140,7 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
       "from": idAdmin,
       "to": selectedUserId,
       "text": text,
-      "timestamp": DateTime.now().toIso8601String()
+      "timestamp": DateTime.now().toIso8601String(),
     };
 
     // Gửi message vào Firestore mà không thay đổi danh sách tin nhắn trong setState
@@ -178,13 +187,15 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
     final isMe = message['from'] == idAdmin;
     final alignment = isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start;
     final color = isMe ? Colors.blue[100] : Colors.grey[300];
-    final margin = isMe
-        ? const EdgeInsets.only(left: 50, right: 8, top: 4, bottom: 4)
-        : const EdgeInsets.only(right: 50, left: 8, top: 4, bottom: 4);
+    final margin =
+        isMe
+            ? const EdgeInsets.only(left: 50, right: 8, top: 4, bottom: 4)
+            : const EdgeInsets.only(right: 50, left: 8, top: 4, bottom: 4);
 
-    final content = message['type'] == 'image'
-        ? Image.memory(message['data'], width: 200, fit: BoxFit.cover)
-        : Text(message['data']);
+    final content =
+        message['type'] == 'image'
+            ? Image.memory(message['data'], width: 200, fit: BoxFit.cover)
+            : Text(message['data']);
 
     return Column(
       crossAxisAlignment: alignment,
@@ -233,9 +244,14 @@ class _AdminChatScreenState extends State<AdminChatScreen> {
                 return ListTile(
                   selected: userId == selectedUserId,
                   onTap: () => _onUserTap(userId),
-                  leading: isUnread
-                      ? const Icon(Icons.brightness_1, color: Colors.red, size: 12)
-                      : const SizedBox(width: 12),
+                  leading:
+                      isUnread
+                          ? const Icon(
+                            Icons.brightness_1,
+                            color: Colors.red,
+                            size: 12,
+                          )
+                          : const SizedBox(width: 12),
                   title: Text(user['fullName'] ?? 'Unknown'),
                 );
               },

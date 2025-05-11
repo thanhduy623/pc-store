@@ -5,6 +5,7 @@ import 'category_screen.dart';
 import 'chat_admin.dart';
 import 'profile_screen.dart';
 import 'product_form_screen.dart';
+import 'package:my_store/screens/ManageProduct.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
@@ -59,6 +60,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     MaterialPageRoute(builder: (_) => const CategoryScreen()),
                   );
                   break;
+                case 'manage_products':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ProductManagementScreen(),
+                    ),
+                  );
+                  break;
                 case 'chat':
                   Navigator.push(
                     context,
@@ -85,6 +94,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     child: ListTile(
                       leading: Icon(Icons.category),
                       title: Text('Quản lý danh mục'),
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'manage_products',
+                    child: ListTile(
+                      leading: Icon(Icons.logout),
+                      title: Text('Quản lý sản phẩm'),
                     ),
                   ),
                   const PopupMenuItem(

@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:my_store/screens/chat_admin.dart';
 import 'CountAccount.dart';
 import 'profile_screen.dart';
-
+import 'DiscountManagerPage.dart';
+import 'OrderListPage_Admin.dart';
 
 class HomeScreenAdmin extends StatefulWidget {
   const HomeScreenAdmin({super.key});
@@ -25,7 +26,7 @@ class _HomeScreenState extends State<HomeScreenAdmin> {
   // List of screens to navigate to for each bottom navigation item.
   final List<Widget> _screens = [
     const HomeScreenContent(), // Home Screen content
-    const ProfileScreen(),     // Profile screen content
+    const ProfileScreen(), // Profile screen content
   ];
 
   @override
@@ -58,6 +59,20 @@ class _HomeScreenState extends State<HomeScreenAdmin> {
                     MaterialPageRoute(builder: (_) => AdminChatScreen()),
                   );
                   break;
+                case 'discount':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DiscountManagerPage(),
+                    ),
+                  );
+                  break;
+                case 'orders':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const OrderListPage()),
+                  );
+                  break;
                 case 'count':
                   Navigator.push(
                     context,
@@ -70,48 +85,69 @@ class _HomeScreenState extends State<HomeScreenAdmin> {
                   break;
               }
             },
-            itemBuilder: (context) => [
-              PopupMenuItem<String>(
-                value: 'profile',
-                child: Row(
-                  children: const [
-                    Icon(Icons.person),
-                    SizedBox(width: 8),
-                    Text('Hồ sơ cá nhân'),
-                  ],
-                ),
-              ),
-              PopupMenuItem<String>(
-                value: 'chat-admin',
-                child: Row(
-                  children: const [
-                    Icon(Icons.chat),
-                    SizedBox(width: 8),
-                    Text('Trả lời tư vấn'),
-                  ],
-                ),
-              ),
-              PopupMenuItem<String>(
-                value: 'count',
-                child: Row(
-                  children: const [
-                    Icon(Icons.person),
-                    SizedBox(width: 8),
-                    Text('Số lượng người dùng'),
-                  ],
-                ),
-              ),
-              PopupMenuItem<String>(
-                value: 'logout',
-                child: Row(
-                  children: const [
-                    Icon(Icons.logout),
-                    SizedBox(width: 8),
-                    Text('Đăng xuất'),
-                  ],
-                ),
-              ),
-            ],
+            itemBuilder:
+                (context) => [
+                  PopupMenuItem<String>(
+                    value: 'profile',
+                    child: Row(
+                      children: const [
+                        Icon(Icons.person),
+                        SizedBox(width: 8),
+                        Text('Hồ sơ cá nhân'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'orders',
+                    child: Row(
+                      children: const [
+                        Icon(Icons.person),
+                        SizedBox(width: 8),
+                        Text('Quản lí đơn hàng'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'discount',
+                    child: Row(
+                      children: const [
+                        Icon(Icons.person),
+                        SizedBox(width: 8),
+                        Text('Quản lí giảm giá'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'chat-admin',
+                    child: Row(
+                      children: const [
+                        Icon(Icons.chat),
+                        SizedBox(width: 8),
+                        Text('Trả lời tư vấn'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'count',
+                    child: Row(
+                      children: const [
+                        Icon(Icons.person),
+                        SizedBox(width: 8),
+                        Text('Số lượng người dùng'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'logout',
+                    child: Row(
+                      children: const [
+                        Icon(Icons.logout),
+                        SizedBox(width: 8),
+                        Text('Đăng xuất'),
+                      ],
+                    ),
+                  ),
+                ],
           ),
         ],
       ),

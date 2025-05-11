@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:my_store/screens/home_admin.dart';
 import 'package:my_store/screens/admin_home_screen.dart';
 import 'package:my_store/screens/home.dart';
 import '../services/firebase/auth_service.dart';
@@ -21,7 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Đăng nhập bằng email + mật khẩu
   void login() async {
-    String email = emailController.text.trim();
+    final email = emailController.text.trim();
     final password = passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
@@ -30,7 +31,8 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     if (!isValidEmail(email)) {
-      email = "$email@gmail.com";
+      showSnackBar("Email không hợp lệ");
+      return;
     }
 
     final user = await _auth.signIn(email, password);
@@ -42,18 +44,15 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // Đăng nhập bằng Google
-  void loginWithGoogle() async {
-    final user = await _auth.signInWithGoogle();
-
-    if (user != null) {
-      await _navigateBasedOnRole(user.uid);
-    } else {
-      showSnackBar("Đăng nhập Google thất bại");
-    }
+  // Validate email
+  bool isValidEmail(String email) {
+    final emailRegExp = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
+    return emailRegExp.hasMatch(email);
   }
 
-  // Điều hướng theo vai trò người dùng
+  // Điều hướng theo vai trò
   Future<void> _navigateBasedOnRole(String uid) async {
     final userDoc =
         await FirebaseFirestore.instance.collection('users').doc(uid).get();
@@ -76,8 +75,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void resetPassword() async {
     final email = emailController.text.trim();
+
     if (email.isEmpty) {
       showSnackBar("Vui lòng nhập email để khôi phục");
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      showSnackBar("Email không hợp lệ");
       return;
     }
 
@@ -89,17 +94,19 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  bool isValidEmail(String email) {
-    final emailRegExp = RegExp(
-      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
-    );
-    return emailRegExp.hasMatch(email);
-  }
-
   void showSnackBar(String message) {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void loginWithGoogle() async {
+    final user = await _auth.signInWithGoogle();
+    if (user != null) {
+      await _navigateBasedOnRole(user.uid);
+    } else {
+      showSnackBar("Đăng nhập Google thất bại");
+    }
   }
 
   @override
@@ -113,67 +120,89 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Đăng nhập')),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextField(
-                controller: emailController,
-                decoration: const InputDecoration(labelText: 'Email'),
-                onSubmitted: (_) => login(),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: passwordController,
-                obscureText: _obscurePassword,
-                decoration: InputDecoration(
-                  labelText: 'Mật khẩu',
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 20),
+                const Text(
+                  'Chào mừng bạn quay lại',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
+                TextField(
+                  controller: emailController,
+                  decoration: const InputDecoration(labelText: 'Email'),
+                  keyboardType: TextInputType.emailAddress,
+                  onSubmitted: (_) => login(),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: passwordController,
+                  obscureText: _obscurePassword,
+                  decoration: InputDecoration(
+                    labelText: 'Mật khẩu',
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
+                  ),
+                  onSubmitted: (_) => login(),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: resetPassword,
+                    child: const Text('Quên mật khẩu?'),
                   ),
                 ),
-                onSubmitted: (_) => login(),
-              ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: resetPassword,
-                  child: const Text('Quên mật khẩu?'),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: login,
+                  child: const Text('Đăng nhập'),
                 ),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(onPressed: login, child: const Text('Đăng nhập')),
-              const SizedBox(height: 10),
-              ElevatedButton.icon(
-                onPressed: loginWithGoogle,
-                icon: const Icon(Icons.login),
-                label: const Text('Đăng nhập bằng Google'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: loginWithGoogle,
+                  icon: const Icon(Icons.login),
+                  label: const Text('Đăng nhập bằng Google'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                  );
-                },
-                child: const Text('Chưa có tài khoản? Đăng ký'),
-              ),
-            ],
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text("Chưa có tài khoản?"),
+                    TextButton(
+                      onPressed:
+                          () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const RegisterScreen(),
+                            ),
+                          ),
+                      child: const Text('Đăng ký'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
