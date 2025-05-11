@@ -1,40 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:my_store/screens/chat_admin.dart';
-import 'profile_screen.dart';
-import 'chat_user.dart';
 import 'category_screen.dart';
-import 'product_form_screen.dart'; // Trang thêm/sửa sản phẩm
+import 'chat_admin.dart';
+import 'profile_screen.dart';
+import 'product_form_screen.dart';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+class AdminHomeScreen extends StatefulWidget {
+  const AdminHomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<AdminHomeScreen> createState() => _AdminHomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _AdminHomeScreenState extends State<AdminHomeScreen> {
   int _selectedIndex = 0;
   String? _selectedCategoryId;
-  bool _isAdmin = false;
   String? _selectedFilter;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkAdmin();
-  }
-
-  Future<void> _checkAdmin() async {
-    final user = FirebaseAuth.instance.currentUser;
-    final tokenResult = await user?.getIdTokenResult();
-    final isAdmin = tokenResult?.claims?['admin'] == true;
-
-    setState(() {
-      _isAdmin = isAdmin ?? false;
-    });
-  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -43,20 +25,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   final List<Widget> _screens = [
-    const SizedBox(), // Sẽ render theo index
+    const SizedBox(),
     const ProfileScreen(),
-    UserChatScreen(),
+    const AdminChatScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    final displayName = user?.displayName ?? 'Người dùng';
+    final displayName = user?.displayName ?? 'Admin';
     final photoURL = user?.photoURL;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Trang chủ'),
+        title: const Text('Admin Dashboard'),
         actions: [
           PopupMenuButton<String>(
             icon: CircleAvatar(
@@ -77,22 +59,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     MaterialPageRoute(builder: (_) => const CategoryScreen()),
                   );
                   break;
-                case 'chat_user':
-                  if (_isAdmin) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const AdminChatScreen(),
-                      ),
-                    );
-                  } else {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => UserChatScreen()),
-                    );
-                  }
+                case 'chat':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AdminChatScreen()),
+                  );
                   break;
-
                 case 'logout':
                   FirebaseAuth.instance.signOut();
                   Navigator.pushReplacementNamed(context, '/login');
@@ -108,19 +80,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       title: Text('Hồ sơ cá nhân'),
                     ),
                   ),
-                  if (_isAdmin)
-                    const PopupMenuItem(
-                      value: 'manage_categories',
-                      child: ListTile(
-                        leading: Icon(Icons.category),
-                        title: Text('Quản lý danh mục'),
-                      ),
-                    ),
                   const PopupMenuItem(
-                    value: 'chat_user',
+                    value: 'manage_categories',
+                    child: ListTile(
+                      leading: Icon(Icons.category),
+                      title: Text('Quản lý danh mục'),
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'chat',
                     child: ListTile(
                       leading: Icon(Icons.chat),
-                      title: Text('Tư vấn sản phẩm'),
+                      title: Text('Tin nhắn'),
                     ),
                   ),
                   const PopupMenuItem(
@@ -140,7 +111,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   _buildCategoryDropdown(),
                   _buildFilterOptions(),
-                  const SizedBox(height: 10),
                   Expanded(child: _buildProductList()),
                 ],
               )
@@ -151,16 +121,18 @@ class _HomeScreenState extends State<HomeScreen> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Hồ sơ'),
-          BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Tư vấn'),
+          BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Tin nhắn'),
         ],
       ),
       floatingActionButton:
-          _isAdmin && _selectedIndex == 0
+          _selectedIndex == 0
               ? FloatingActionButton(
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => ProductFormScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => const ProductFormScreen(),
+                    ),
                   );
                 },
                 child: const Icon(Icons.add),
@@ -185,18 +157,12 @@ class _HomeScreenState extends State<HomeScreen> {
             value: _selectedCategoryId,
             items: [
               const DropdownMenuItem(value: null, child: Text("Tất cả")),
-              ...categories.map((doc) {
-                return DropdownMenuItem(
-                  value: doc.id,
-                  child: Text(doc['name']),
-                );
-              }).toList(),
+              ...categories.map(
+                (doc) =>
+                    DropdownMenuItem(value: doc.id, child: Text(doc['name'])),
+              ),
             ],
-            onChanged: (value) {
-              setState(() {
-                _selectedCategoryId = value;
-              });
-            },
+            onChanged: (value) => setState(() => _selectedCategoryId = value),
           );
         },
       ),
@@ -205,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildFilterOptions() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(8.0),
       child: Wrap(
         spacing: 8,
         children: [
@@ -224,11 +190,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return ChoiceChip(
       label: Text(label),
       selected: isSelected,
-      onSelected: (_) {
-        setState(() {
-          _selectedFilter = isSelected ? null : value;
-        });
-      },
+      onSelected:
+          (_) => setState(() {
+            _selectedFilter = isSelected ? null : value;
+          }),
     );
   }
 
@@ -289,38 +254,34 @@ class _HomeScreenState extends State<HomeScreen> {
                         : const Icon(Icons.image),
                 title: Text(data['name'] ?? ''),
                 subtitle: Text("Giá: ${data['price'] ?? 0} đ"),
-                trailing:
-                    _isAdmin
-                        ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit, color: Colors.blue),
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder:
-                                        (_) => ProductFormScreen(
-                                          productId: doc.id,
-                                          productData: data,
-                                        ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.blue),
+                      onPressed:
+                          () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (_) => ProductFormScreen(
+                                    productId: doc.id,
+                                    productData: data,
                                   ),
-                                );
-                              },
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () async {
-                                await FirebaseFirestore.instance
-                                    .collection('products')
-                                    .doc(doc.id)
-                                    .delete();
-                              },
-                            ),
-                          ],
-                        )
-                        : null,
+                          ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () async {
+                        await FirebaseFirestore.instance
+                            .collection('products')
+                            .doc(doc.id)
+                            .delete();
+                      },
+                    ),
+                  ],
+                ),
               ),
             );
           },
