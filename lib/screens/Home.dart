@@ -3,6 +3,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:my_store/screens/product_detail_screen.dart';
 import 'package:my_store/utils/controllPicture.dart';
 import 'dart:typed_data';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:my_store/screens/profile_screen.dart';
+import 'package:my_store/screens/chat_user.dart';
+import 'package:my_store/screens/CartPage.dart';
+import 'package:my_store/screens/OrderListPage_User.dart';
+import 'product_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -12,6 +18,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  int _selectedIndex = 0;
+  User? _user = FirebaseAuth.instance.currentUser;
   final int _limit = 5;
   final ScrollController _scrollController = ScrollController();
 
@@ -31,6 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, DocumentSnapshot?> _categoryLastDocs = {};
   Map<String, bool> _isLoadingCategory = {};
   Map<String, bool> _hasMoreCategory = {};
+  List<DocumentSnapshot> _productDocs = []; // Tạm thời
 
   @override
   void initState() {
@@ -41,6 +50,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadInitialData() async {
     await _loadNewestProducts();
     await _loadCategoriesAndProducts();
+    // Tạm thời gán _newestProducts cho _productDocs để hiển thị
+    _productDocs = _newestProducts;
+    setState(() {});
   }
 
   Future<void> _loadNewestProducts({bool loadMore = false}) async {
@@ -63,6 +75,10 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         _newestLastDoc = snapshot.docs.last;
         _hasMoreNewest = snapshot.docs.length == _limit;
+        // Cập nhật _productDocs khi tải sản phẩm mới
+        if (_selectedIndex == 0) {
+          _productDocs = _newestProducts;
+        }
       });
     } else {
       _hasMoreNewest = false;
@@ -273,44 +289,176 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildProductListView(List<DocumentSnapshot> products) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 36.0),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSection(
+              'Sản phẩm mới',
+              _newestProducts,
+              _isLoadingNewest,
+              _hasMoreNewest,
+              () => _loadNewestProducts(loadMore: true),
+            ),
+            _buildSection(
+              'Sản phẩm giảm giá',
+              _saleProducts,
+              _isLoadingSale,
+              _hasMoreSale,
+              () {}, // Implement logic for sale products
+            ),
+            ..._categories.map((category) {
+              final categoryId = category.id;
+              return _buildSection(
+                category['name'] as String,
+                _categoryProducts[categoryId] ?? [],
+                _isLoadingCategory[categoryId] ?? false,
+                _hasMoreCategory[categoryId] ?? false,
+                () => _loadProductsByCategory(categoryId, loadMore: true),
+              );
+            }).toList(),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  PopupMenuItem<String> _buildMenuItem(
+    String value,
+    IconData icon,
+    String text,
+  ) {
+    return PopupMenuItem<String>(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.black54),
+          const SizedBox(width: 10),
+          Text(text),
+        ],
+      ),
+    );
+  }
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  final List<Widget> _screens = [
+    const SizedBox(), // Trang chủ - sẽ được build ở body
+    const ProfileScreen(),
+    UserChatScreen(),
+  ];
+
+  Widget _buildCategoryDropdown() {
+    // Phần này bạn có thể tùy chỉnh hoặc bỏ qua nếu không cần dropdown danh mục
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildFilterOptions() {
+    // Phần này bạn có thể tùy chỉnh hoặc bỏ qua nếu không cần bộ lọc
+    return const SizedBox.shrink();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Trang chủ')),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 36.0),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSection(
-                'Sản phẩm mới',
-                _newestProducts,
-                _isLoadingNewest,
-                _hasMoreNewest,
-                () => _loadNewestProducts(loadMore: true),
+      appBar: AppBar(
+        title: const Text('Trang chủ'),
+        actions: [
+          _user != null
+              ? PopupMenuButton<String>(
+                icon: CircleAvatar(
+                  backgroundImage:
+                      _user?.photoURL != null
+                          ? NetworkImage(_user!.photoURL!)
+                          : null,
+                  child:
+                      _user?.photoURL == null ? const Icon(Icons.person) : null,
+                ),
+                onSelected: (value) {
+                  switch (value) {
+                    case 'profile':
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ProfileScreen(),
+                        ),
+                      );
+                      break;
+                    case 'cart':
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const CartPage()),
+                      );
+                      break;
+                    case 'orders':
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const OrderListPage(),
+                        ),
+                      );
+                      break;
+                    case 'chat_user':
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => UserChatScreen()),
+                      );
+                      break;
+                    case 'logout':
+                      FirebaseAuth.instance.signOut();
+                      Navigator.pushReplacementNamed(context, '/login');
+                      break;
+                  }
+                },
+                itemBuilder:
+                    (context) => [
+                      _buildMenuItem('profile', Icons.person, 'Hồ sơ cá nhân'),
+                      _buildMenuItem(
+                        'cart',
+                        Icons.shopping_cart,
+                        'Giỏ hàng của tôi',
+                      ),
+                      _buildMenuItem(
+                        'orders',
+                        Icons.list_alt,
+                        'Đơn hàng của tôi',
+                      ),
+                      _buildMenuItem(
+                        'chat_user',
+                        Icons.chat,
+                        'Tư vấn sản phẩm',
+                      ),
+                      _buildMenuItem('logout', Icons.logout, 'Đăng xuất'),
+                    ],
+              )
+              : IconButton(
+                icon: const Icon(Icons.login),
+                onPressed: () {
+                  Navigator.pushReplacementNamed(context, '/login');
+                },
               ),
-              _buildSection(
-                'Sản phẩm giảm giá',
-                _saleProducts,
-                _isLoadingSale,
-                _hasMoreSale,
-                () {}, // Implement logic for sale products
-              ),
-              ..._categories.map((category) {
-                final categoryId = category.id;
-                return _buildSection(
-                  category['name'] as String,
-                  _categoryProducts[categoryId] ?? [],
-                  _isLoadingCategory[categoryId] ?? false,
-                  _hasMoreCategory[categoryId] ?? false,
-                  () => _loadProductsByCategory(categoryId, loadMore: true),
-                );
-              }).toList(),
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
+        ],
+      ),
+      body:
+          _selectedIndex == 0
+              ? _buildProductListView(_productDocs)
+              : _screens[_selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Hồ sơ'),
+          BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Tư vấn'),
+        ],
       ),
     );
   }

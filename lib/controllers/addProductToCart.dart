@@ -10,40 +10,38 @@ Future<void> addProductToCart(
   String image,
 ) async {
   final prefs = await SharedPreferences.getInstance();
+  List<String> savedItems = prefs.getStringList('localCart') ?? [];
 
-  // Retrieve the current cart from SharedPreferences
-  List<String> currentList = prefs.getStringList('localCart') ?? [];
+  bool productFound = false; // Đổi tên biến cho rõ ràng hơn
+  int existingProductIndex = -1; // Thêm biến để lưu vị trí sản phẩm đã tồn tại
 
-  // Check if the current list is empty
-  if (currentList.isEmpty) {
-    // If empty, initialize it with an empty list or proceed with adding new product
-    currentList = [];
-  }
-
-  // Check if the product already exists in the cart
-  bool productFound = false;
-
-  for (int i = 0; i < currentList.length; i++) {
-    Map<String, dynamic> product = jsonDecode(currentList[i]);
+  // Lặp qua các sản phẩm trong giỏ hàng để kiểm tra sản phẩm đã tồn tại chưa
+  for (int i = 0; i < savedItems.length; i++) {
+    Map<String, dynamic> product = jsonDecode(savedItems[i]);
     if (product['productId'] == productId) {
-      // Update the existing product
-      product['name'] = name;
-      product['price'] = price;
-      product['image'] = image;
-      product['quantity'] += 1; // Increment quantity
-
-      // Update the product in the list
-      currentList[i] = jsonEncode(product);
       productFound = true;
+      existingProductIndex = i; // Lưu lại index
       break;
     }
   }
 
-  // If the product is not found, add a new one
-  if (!productFound) {
+  if (productFound) {
+    // Nếu sản phẩm đã tồn tại, cập nhật số lượng
+    Map<String, dynamic> existingProduct = jsonDecode(
+      savedItems[existingProductIndex],
+    );
+    existingProduct['quantity'] = (existingProduct['quantity'] ?? 0) + 1;
+    // Cập nhật các thông tin khác của sản phẩm
+    existingProduct['name'] = name;
+    existingProduct['price'] = price;
+    existingProduct['image'] = image;
+    savedItems[existingProductIndex] = jsonEncode(
+      existingProduct,
+    ); // Cập nhật lại vào savedItems
+  } else {
+    // Nếu sản phẩm chưa tồn tại, thêm mới vào giỏ hàng
     Map<String, dynamic> newProduct = {
-      'id':
-          DateTime.now().millisecondsSinceEpoch.toString(), // Generate a new ID
+      'id': DateTime.now().millisecondsSinceEpoch.toString(),
       'selected': false,
       'name': name,
       'productId': productId,
@@ -51,15 +49,13 @@ Future<void> addProductToCart(
       'price': price,
       'image': image,
     };
-
-    // Add the new product to the cart
-    currentList.add(jsonEncode(newProduct));
+    savedItems.add(jsonEncode(newProduct));
   }
 
-  // Save the updated cart to SharedPreferences
-  await prefs.setStringList('localCart', currentList);
+  // Lưu danh sách giỏ hàng đã cập nhật
+  await prefs.setStringList('localCart', savedItems);
 
-  // Show a snackbar to notify the user
+  // Thông báo cho người dùng
   ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(content: Text("📦 Sản phẩm đã được thêm vào giỏ")),
   );
