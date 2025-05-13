@@ -253,8 +253,8 @@ class _DiscountManagerPageState extends State<DiscountManagerPage> {
               ),
       floatingActionButton: FloatingActionButton(
         onPressed: _navigateToAdd,
-        child: const Icon(Icons.add),
         tooltip: 'Thêm mã giảm giá',
+        child: const Icon(Icons.add),
       ),
     );
   }

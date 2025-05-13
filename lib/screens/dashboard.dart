@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:my_store/utils/moneyFormat.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({Key? key}) : super(key: key);
+  const DashboardScreen({super.key});
 
   @override
   _DashboardScreenState createState() => _DashboardScreenState();
@@ -27,7 +27,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<QuarterlyRevenueData> _quarterlyChartData = [];
   List<YearlyRevenueData> _yearlyChartData = [];
   List<WeeklyRevenueData> _weeklyChartData = [];
-  List<OrderData> _orderData = [];
+  final List<OrderData> _orderData = [];
   List<Map<String, dynamic>> _bestSellingProducts = [];
 
   @override
@@ -159,7 +159,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               )
               .get();
       for (final doc in dailyOrderSnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data();
         dailyRevenue += (data['total'] ?? 0).toDouble();
       }
     } catch (e) {
@@ -217,7 +217,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               )
               .get();
       for (final doc in monthlyOrderSnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data();
         monthlyRevenue += (data['total'] ?? 0).toDouble();
       }
     } catch (e) {
@@ -302,7 +302,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               )
               .get();
       for (final doc in quarterlyOrderSnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data();
         quarterlyRevenue += (data['total'] ?? 0).toDouble();
       }
     } catch (e) {
@@ -353,7 +353,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               )
               .get();
       for (final doc in yearlyOrderSnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data();
         yearlyRevenue += (data['total'] ?? 0).toDouble();
       }
     } catch (e) {
@@ -409,7 +409,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               )
               .get();
       for (final doc in weeklyOrderSnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data();
         weeklyRevenue += (data['total'] ?? 0).toDouble();
       }
     } catch (e) {
@@ -436,7 +436,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       Map<String, int> productQuantities = {};
 
       for (final orderDoc in orderSnapshot.docs) {
-        final orderData = orderDoc.data() as Map<String, dynamic>;
+        final orderData = orderDoc.data();
         final items = orderData['items'] as List<dynamic>? ?? [];
 
         for (var item in items) {
@@ -524,7 +524,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             _buildStatCard(
               'Tổng tiền',
-              '${moneyFormat(_totalRevenue)}',
+              moneyFormat(_totalRevenue),
               Icons.attach_money,
               width: cardWidth,
             ),

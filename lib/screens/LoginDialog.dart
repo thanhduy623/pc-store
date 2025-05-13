@@ -6,7 +6,7 @@ import 'home_admin.dart';
 import 'Home.dart';
 
 class LoginDialog extends StatefulWidget {
-  const LoginDialog({Key? key}) : super(key: key);
+  const LoginDialog({super.key});
 
   @override
   _LoginDialogState createState() => _LoginDialogState();
@@ -184,10 +184,10 @@ class _LoginDialogState extends State<LoginDialog> {
             // Login Button
             ElevatedButton(
               onPressed: login,
-              child: const Text('Đăng nhập'),
               style: ElevatedButton.styleFrom(
                 minimumSize: Size.fromHeight(45), // Makes button larger
               ),
+              child: const Text('Đăng nhập'),
             ),
             const SizedBox(height: 10),
 

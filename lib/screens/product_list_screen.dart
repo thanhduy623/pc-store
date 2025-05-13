@@ -22,11 +22,13 @@ class _ProductListScreenState extends State<ProductListScreen> {
   double? maxPrice;
   String searchQuery = '';
   bool isFilterApplied = false;
+  Set<String> _discountedProductIds = {};
 
   @override
   void initState() {
     super.initState();
     _checkIfAdmin();
+    _loadDiscountedProducts();
   }
 
   Future<void> _checkIfAdmin() async {
@@ -48,6 +50,29 @@ class _ProductListScreenState extends State<ProductListScreen> {
     await FirebaseFirestore.instance.collection('products').doc(id).delete();
   }
 
+  Future<void> _loadDiscountedProducts() async {
+    // Lấy tất cả mã giảm giá loại "Mặt hàng" còn hiệu lực
+    final now = Timestamp.now();
+    final discountSnapshot =
+        await FirebaseFirestore.instance
+            .collection('discounts')
+            .where('type', isEqualTo: 'Mặt hàng')
+            .where('endDate', isGreaterThan: now)
+            .where('startDate', isLessThan: now)
+            .get();
+
+    // Tạo set các product ID từ các mã giảm giá
+    final Set<String> productIds = {};
+    for (var doc in discountSnapshot.docs) {
+      final List<dynamic> ids = doc['productIds'] ?? [];
+      productIds.addAll(ids.cast<String>());
+    }
+
+    setState(() {
+      _discountedProductIds = productIds;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     Query<Map<String, dynamic>> query = FirebaseFirestore.instance.collection(
@@ -62,8 +87,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
       if (selectedBrand != null) {
         query = query.where('brand', isEqualTo: selectedBrand);
       }
-      if (isSaleOnly) {
-        query = query.where('isSale', isEqualTo: true);
+      if (isSaleOnly && _discountedProductIds.isNotEmpty) {
+        // Nếu chọn lọc sản phẩm khuyến mãi và có sản phẩm khuyến mãi
+        query = query.where(
+          FieldPath.documentId,
+          whereIn: _discountedProductIds.toList(),
+        );
       }
       if (minPrice != null) {
         query = query.where('price', isGreaterThanOrEqualTo: minPrice);

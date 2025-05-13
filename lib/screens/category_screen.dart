@@ -12,7 +12,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
   final TextEditingController _categoryController = TextEditingController();
   final TextEditingController _attributeController = TextEditingController();
   final FocusNode _attributeFocusNode = FocusNode();
-  List<String> _attributes = [];
+  final List<String> _attributes = [];
 
   void _addAttribute() {
     final attr = _attributeController.text.trim();

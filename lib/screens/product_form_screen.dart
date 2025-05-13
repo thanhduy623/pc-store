@@ -16,7 +16,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
+  final _descriptionController = TextEditingController();
   String? _selectedCategoryId;
+  String? _selectedBrand;
   List<String> base64Images = [];
   List<String> categoryAttributes = [];
 
@@ -26,7 +28,9 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     if (widget.productData != null) {
       _nameController.text = widget.productData!['name'] ?? '';
       _priceController.text = widget.productData!['price']?.toString() ?? '';
+      _descriptionController.text = widget.productData!['description'] ?? '';
       _selectedCategoryId = widget.productData!['categoryId'];
+      _selectedBrand = widget.productData!['brand'];
       if (widget.productData!['image'] != null) {
         base64Images = List<String>.from(widget.productData!['image']);
       }
@@ -54,6 +58,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     final productData = {
       'name': _nameController.text.trim(),
       'price': double.tryParse(_priceController.text.trim()) ?? 0,
+      'description': _descriptionController.text.trim(),
+      'brand': _selectedBrand,
       'image': base64Images,
       'categoryId': _selectedCategoryId,
       'updatedAt': FieldValue.serverTimestamp(),
@@ -89,6 +95,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   void dispose() {
     _nameController.dispose();
     _priceController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -128,10 +135,14 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   const SizedBox(height: 10),
                   _buildCategoryDropdown(),
                   const SizedBox(height: 10),
+                  _buildBrandDropdown(),
+                  const SizedBox(height: 10),
+                  _buildDescriptionField(),
+                  const SizedBox(height: 10),
                   if (_selectedCategoryId != null) ...[
                     _buildCategoryAttributes(),
+                    const SizedBox(height: 10),
                   ],
-                  const SizedBox(height: 10),
                   _buildImageSection(),
                   const SizedBox(height: 20),
                   ElevatedButton(
@@ -192,6 +203,64 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           validator: (value) => value == null ? 'Vui lòng chọn danh mục' : null,
         );
       },
+    );
+  }
+
+  Widget _buildBrandDropdown() {
+    return StreamBuilder<QuerySnapshot>(
+      stream:
+          FirebaseFirestore.instance
+              .collection('brands')
+              .where('categoryId', isEqualTo: _selectedCategoryId)
+              .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const CircularProgressIndicator();
+
+        final brands = snapshot.data!.docs;
+
+        // Nếu brand hiện tại không còn trong danh sách, reset selection
+        if (_selectedBrand != null &&
+            !brands.any((doc) => doc['name'] == _selectedBrand)) {
+          _selectedBrand = null;
+        }
+
+        return DropdownButtonFormField<String>(
+          value: _selectedBrand,
+          decoration: const InputDecoration(labelText: 'Thương hiệu'),
+          items:
+              brands.map((doc) {
+                final brandName = doc['name'] as String;
+                return DropdownMenuItem<String>(
+                  value: brandName,
+                  child: Text(brandName),
+                );
+              }).toList(),
+          onChanged: (value) {
+            setState(() {
+              _selectedBrand = value;
+            });
+          },
+          validator:
+              (value) => value == null ? 'Vui lòng chọn thương hiệu' : null,
+        );
+      },
+    );
+  }
+
+  Widget _buildDescriptionField() {
+    return TextFormField(
+      controller: _descriptionController,
+      maxLines: 5,
+      decoration: const InputDecoration(
+        labelText: 'Mô tả sản phẩm',
+        alignLabelWithHint: true,
+        border: OutlineInputBorder(),
+      ),
+      validator:
+          (value) =>
+              value == null || value.isEmpty
+                  ? 'Vui lòng nhập mô tả sản phẩm'
+                  : null,
     );
   }
 

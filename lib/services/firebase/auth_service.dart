@@ -50,7 +50,7 @@ class AuthService {
       return userCred.user;
     } on FirebaseAuthException catch (e) {
       // ✅ Ném lỗi ra ngoài để UI bắt và xử lý (ví dụ email đã tồn tại)
-      throw e;
+      rethrow;
     } catch (e) {
       print('Lỗi không xác định: $e');
       throw Exception('Đăng ký thất bại');

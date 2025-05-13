@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
-class PriceRangeFilter extends StatelessWidget {
+class PriceRangeFilter extends StatefulWidget {
   final double? minPrice;
   final double? maxPrice;
   final Function(double?) onMinPriceChanged;
@@ -8,55 +9,80 @@ class PriceRangeFilter extends StatelessWidget {
 
   const PriceRangeFilter({
     Key? key,
-    required this.minPrice,
-    required this.maxPrice,
+    this.minPrice,
+    this.maxPrice,
     required this.onMinPriceChanged,
     required this.onMaxPriceChanged,
   }) : super(key: key);
 
-  String formatPrice(double price) {
-    return '${price.toInt()} đ';
+  @override
+  State<PriceRangeFilter> createState() => _PriceRangeFilterState();
+}
+
+class _PriceRangeFilterState extends State<PriceRangeFilter> {
+  RangeValues _currentRangeValues = const RangeValues(0, 100000000);
+  final double _min = 0;
+  final double _max = 100000000;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentRangeValues = RangeValues(
+      widget.minPrice ?? _min,
+      widget.maxPrice ?? _max,
+    );
+  }
+
+  String _formatPrice(double value) {
+    final format = NumberFormat.currency(
+      locale: 'vi_VN',
+      symbol: '₫',
+      decimalDigits: 0,
+    );
+    return format.format(value);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DropdownButton<double>(
-          value: minPrice,
-          hint: const Text("Giá thấp nhất"),
-          items: [
-            const DropdownMenuItem<double>(
-              value: null,
-              child: Text('Tất cả'),
-            ),
-            for (var price in [0, 1000000, 5000000, 10000000, 20000000, 50000000])
-              DropdownMenuItem(
-                value: price.toDouble(),
-                child: Text(formatPrice(price.toDouble())),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                width: 120,
+                alignment: Alignment.centerLeft,
+                child: Text(_formatPrice(_currentRangeValues.start)),
               ),
-          ],
-          onChanged: onMinPriceChanged,
+              Container(
+                width: 120,
+                alignment: Alignment.centerRight,
+                child: Text(_formatPrice(_currentRangeValues.end)),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(width: 8),
-        DropdownButton<double>(
-          value: maxPrice,
-          hint: const Text("Giá cao nhất"),
-          items: [
-            const DropdownMenuItem<double>(
-              value: null,
-              child: Text('Tất cả'),
-            ),
-            for (var price in [1000000, 5000000, 10000000, 20000000, 50000000, 100000000])
-              DropdownMenuItem(
-                value: price.toDouble(),
-                child: Text(formatPrice(price.toDouble())),
-              ),
-          ],
-          onChanged: onMaxPriceChanged,
+        RangeSlider(
+          values: _currentRangeValues,
+          min: _min,
+          max: _max,
+          divisions: 100,
+          onChanged: (RangeValues values) {
+            // Kiểm tra khoảng cách tối thiểu (5% của tổng khoảng)
+            final minDistance = (_max - _min) / 20;
+            if (values.end - values.start >= minDistance) {
+              setState(() {
+                _currentRangeValues = values;
+              });
+              widget.onMinPriceChanged(values.start);
+              widget.onMaxPriceChanged(values.end);
+            }
+          },
         ),
       ],
     );
   }
-} 
+}

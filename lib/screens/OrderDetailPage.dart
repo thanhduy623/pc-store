@@ -235,7 +235,7 @@ class OrderDetailPage extends StatelessWidget {
               ),
             ],
           );
-        }).toList(),
+        }),
       ],
     );
   }

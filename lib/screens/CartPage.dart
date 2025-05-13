@@ -10,7 +10,7 @@ import 'package:my_store/screens/LoginDialog.dart';
 import 'package:my_store/utils/moneyFormat.dart' as utils;
 
 class CartPage extends StatefulWidget {
-  const CartPage({Key? key}) : super(key: key);
+  const CartPage({super.key});
 
   @override
   _CartPageState createState() => _CartPageState();
@@ -243,7 +243,9 @@ class _CartPageState extends State<CartPage> {
                                   Column(
                                     children: [
                                       Text(
-                                        '${utils.moneyFormat(item.price * item.quantity)}',
+                                        utils.moneyFormat(
+                                          item.price * item.quantity,
+                                        ),
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                         ),

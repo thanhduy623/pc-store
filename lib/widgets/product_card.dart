@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import 'package:my_store/utils/controllPicture.dart';
 import 'package:my_store/screens/product_detail_screen.dart';
+import 'package:my_store/utils/moneyFormat.dart';
 
 class ProductCard extends StatelessWidget {
   final String id;
   final Map<String, dynamic> data;
 
-  const ProductCard({Key? key, required this.id, required this.data})
-    : super(key: key);
+  const ProductCard({super.key, required this.id, required this.data});
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +92,7 @@ class ProductCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            "${data['price']?.toString() ?? '0'} đ",
+                            "${moneyFormat(data['price']) ?? '0 đ'}",
                             style: TextStyle(
                               color: Colors.red[700],
                               fontWeight: FontWeight.bold,

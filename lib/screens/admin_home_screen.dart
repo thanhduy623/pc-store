@@ -3,8 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'category_screen.dart';
 import 'chat_admin.dart';
 import 'profile_screen.dart';
-import 'product_form_screen.dart';
 import 'package:my_store/screens/ManageProduct.dart';
+import 'package:my_store/screens/DiscountManagerPage.dart';
 import 'package:my_store/screens/dashboard.dart';
 
 class AdminHomeScreen extends StatefulWidget {
@@ -39,7 +39,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    final displayName = user?.displayName ?? 'Admin';
     final photoURL = user?.photoURL;
 
     return Scaffold(
@@ -74,6 +73,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     ),
                   );
                   break;
+                case 'manage_discounts':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DiscountManagerPage(),
+                    ),
+                  );
+                  break;
                 case 'chat':
                   Navigator.push(
                     context,
@@ -105,8 +112,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                   const PopupMenuItem(
                     value: 'manage_products',
                     child: ListTile(
-                      leading: Icon(Icons.logout),
+                      leading: Icon(Icons.shopping_bag),
                       title: Text('Quản lý sản phẩm'),
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'manage_discounts',
+                    child: ListTile(
+                      leading: Icon(Icons.local_offer),
+                      title: Text('Quản lý giảm giá'),
                     ),
                   ),
                   const PopupMenuItem(

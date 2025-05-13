@@ -65,7 +65,7 @@ class _Base64TestScreenState extends State<Base64TestScreen> {
                 const Text("Base64 (auto fill):"),
                 SelectableText(
                   base64Str.isNotEmpty
-                      ? base64Str.substring(0, 100) + "..."
+                      ? "${base64Str.substring(0, 100)}..."
                       : "Chưa chọn ảnh",
                   textAlign: TextAlign.center,
                 ),

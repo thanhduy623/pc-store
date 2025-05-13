@@ -15,10 +15,10 @@ class ConfirmPage extends StatefulWidget {
   final String? userEmail;
 
   const ConfirmPage({
-    Key? key,
+    super.key,
     required this.selectedProducts,
     required this.userEmail,
-  }) : super(key: key);
+  });
 
   @override
   _ConfirmPageState createState() => _ConfirmPageState();
@@ -120,7 +120,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
         setState(() {
           isEmailReadOnly = true;
           userPoints = userData['point'] ?? 0;
-          pointsHint = "Bạn có ${userPoints} điểm (1 điểm = 1.000 đồng)";
+          pointsHint = "Bạn có $userPoints điểm (1 điểm = 1.000 đồng)";
         });
       } else {
         print("No user found with that email.");
