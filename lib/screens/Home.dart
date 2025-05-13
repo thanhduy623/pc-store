@@ -9,6 +9,8 @@ import 'package:my_store/screens/chat_user.dart';
 import 'package:my_store/screens/CartPage.dart';
 import 'package:my_store/screens/OrderListPage_User.dart';
 import 'product_detail_screen.dart';
+import 'package:my_store/widgets/price_range_filter.dart';
+import 'package:my_store/widgets/product_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,6 +24,15 @@ class _HomeScreenState extends State<HomeScreen> {
   User? _user = FirebaseAuth.instance.currentUser;
   final int _limit = 5;
   final ScrollController _scrollController = ScrollController();
+
+  // Sorting and filtering state
+  String _sortBy =
+      'newest'; // newest, nameAZ, nameZA, priceLowHigh, priceHighLow
+  String? _selectedBrand;
+  String? _selectedCategory;
+  double? _minPrice;
+  double? _maxPrice;
+  bool _isFilterVisible = false;
 
   // Newest Products
   List<DocumentSnapshot> _newestProducts = [];
@@ -40,6 +51,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, bool> _isLoadingCategory = {};
   Map<String, bool> _hasMoreCategory = {};
   List<DocumentSnapshot> _productDocs = []; // Tạm thời
+
+  String _searchQuery = '';
+
+  bool isAdmin = false;
 
   @override
   void initState() {
@@ -132,111 +147,56 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildProductGrid(List<DocumentSnapshot> products) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 5,
-        crossAxisSpacing: 8.0,
-        mainAxisSpacing: 8.0,
-        mainAxisExtent: 200.0, // Chiều cao card là 200px
-      ),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        final doc = products[index];
-        final data = doc.data() as Map<String, dynamic>;
-        final List<dynamic>? imageList = data['image'];
-        Uint8List? imageBytes;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Tính toán số cột dựa trên chiều rộng màn hình
+        final width = constraints.maxWidth;
+        int crossAxisCount;
+        double padding;
+        double spacing;
 
-        if (imageList != null &&
-            imageList.isNotEmpty &&
-            imageList[0] is String) {
-          try {
-            imageBytes = Base64ImageTool.base64ToImage(imageList[0]);
-          } catch (e) {
-            print(
-              "❌ Lỗi giải mã ảnh ở HomeScreen (giống ProductManagement): $e",
-            );
-          }
-        }
-
-        Widget imageWidget;
-        if (imageBytes != null) {
-          imageWidget = Padding(
-            padding: const EdgeInsets.all(8.0), // Giảm padding xuống 8.0
-            child: Image.memory(
-              imageBytes,
-              fit: BoxFit.contain,
-              errorBuilder:
-                  (context, error, stackTrace) => const Icon(Icons.image),
-            ),
-          );
+        if (width > 1200) {
+          crossAxisCount = 5; // Màn hình lớn
+          padding = 16.0;
+          spacing = 16.0;
+        } else if (width > 900) {
+          crossAxisCount = 4; // Màn hình trung bình
+          padding = 12.0;
+          spacing = 12.0;
+        } else if (width > 600) {
+          crossAxisCount = 3; // Màn hình nhỏ
+          padding = 8.0;
+          spacing = 8.0;
         } else {
-          imageWidget = const Padding(
-            padding: EdgeInsets.all(8.0), // Giảm padding xuống 8.0
-            child: Icon(
-              Icons.image,
-              size: 36,
-            ), // Tăng kích thước icon nếu không có ảnh
-          );
+          crossAxisCount = 2; // Màn hình rất nhỏ
+          padding = 4.0;
+          spacing = 4.0;
         }
 
-        return KeyedSubtree(
-          // Sử dụng KeyedSubtree
-          key: ValueKey(doc.id),
-          child: Card(
-            margin: EdgeInsets.zero,
-            child: InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder:
-                        (_) => ProductDetailScreen(
-                          productData: {'id': doc.id, ...data},
-                        ),
-                  ),
-                );
-              },
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Expanded(
-                    flex: 4, // Tăng flex cho phần hình ảnh
-                    child: imageWidget,
-                  ),
-                  Expanded(
-                    flex: 2, // Giữ nguyên hoặc giảm flex cho phần text
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4.0,
-                        vertical: 2.0,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: <Widget>[
-                          Text(
-                            data['name'] ?? '',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            '${data['price'] ?? 0} đ',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+        // Tính toán chiều cao tối ưu cho mỗi item
+        final availableWidth =
+            width - (padding * 2) - (spacing * (crossAxisCount - 1));
+        final itemWidth = availableWidth / crossAxisCount;
+        final itemHeight = itemWidth * 1.5; // Tỷ lệ 3:2 cho mỗi card
+
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.all(padding),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
+            mainAxisExtent: itemHeight,
           ),
+          itemCount: products.length,
+          itemBuilder: (context, index) {
+            final doc = products[index];
+            return ProductCard(
+              id: doc.id,
+              data: doc.data() as Map<String, dynamic>,
+            );
+          },
         );
       },
     );
@@ -290,40 +250,284 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildProductListView(List<DocumentSnapshot> products) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 36.0),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSection(
-              'Sản phẩm mới',
-              _newestProducts,
-              _isLoadingNewest,
-              _hasMoreNewest,
-              () => _loadNewestProducts(loadMore: true),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Tính toán padding dựa trên chiều rộng màn hình
+        final screenWidth = constraints.maxWidth;
+        final horizontalPadding =
+            screenWidth > 1200
+                ? screenWidth *
+                    0.1 // 10% màn hình cho màn rộng
+                : screenWidth > 600
+                ? screenWidth *
+                    0.05 // 5% màn hình cho màn trung bình
+                : 8.0; // Padding nhỏ cho màn hẹp
+
+        return SingleChildScrollView(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Category and brand filters
+                Padding(
+                  padding: EdgeInsets.all(screenWidth > 600 ? 16.0 : 8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Categories row
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: StreamBuilder<QuerySnapshot>(
+                          stream:
+                              FirebaseFirestore.instance
+                                  .collection('categories')
+                                  .snapshots(),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData)
+                              return const CircularProgressIndicator();
+
+                            return Row(
+                              children: [
+                                // All categories option
+                                Padding(
+                                  padding: EdgeInsets.only(
+                                    right: screenWidth > 600 ? 8.0 : 4.0,
+                                  ),
+                                  child: FilterChip(
+                                    label: const Text('Tất cả'),
+                                    selected: _selectedCategory == null,
+                                    onSelected: (bool selected) {
+                                      setState(() {
+                                        _selectedCategory = null;
+                                        _selectedBrand = null;
+                                        _applySortingAndFiltering();
+                                      });
+                                    },
+                                  ),
+                                ),
+                                ...snapshot.data!.docs.map((doc) {
+                                  return Padding(
+                                    padding: EdgeInsets.only(
+                                      right: screenWidth > 600 ? 8.0 : 4.0,
+                                    ),
+                                    child: FilterChip(
+                                      label: Text(doc['name'] as String),
+                                      selected: _selectedCategory == doc.id,
+                                      onSelected: (bool selected) {
+                                        setState(() {
+                                          _selectedCategory =
+                                              selected ? doc.id : null;
+                                          _selectedBrand = null;
+                                          _applySortingAndFiltering();
+                                        });
+                                      },
+                                    ),
+                                  );
+                                }).toList(),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                      SizedBox(height: screenWidth > 600 ? 16.0 : 8.0),
+                      // Brands row (only show if category is selected)
+                      if (_selectedCategory != null)
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: StreamBuilder<QuerySnapshot>(
+                            stream:
+                                FirebaseFirestore.instance
+                                    .collection('brands')
+                                    .snapshots(),
+                            builder: (context, snapshot) {
+                              if (!snapshot.hasData)
+                                return const CircularProgressIndicator();
+
+                              final allBrands = snapshot.data!.docs;
+                              final filteredBrands =
+                                  allBrands
+                                      .where(
+                                        (doc) =>
+                                            doc['categoryId'] ==
+                                            _selectedCategory,
+                                      )
+                                      .toList();
+
+                              if (filteredBrands.isEmpty)
+                                return const SizedBox.shrink();
+
+                              return Row(
+                                children: [
+                                  // All brands option
+                                  Padding(
+                                    padding: EdgeInsets.only(
+                                      right: screenWidth > 600 ? 8.0 : 4.0,
+                                    ),
+                                    child: FilterChip(
+                                      label: const Text('Tất cả'),
+                                      selected: _selectedBrand == null,
+                                      onSelected: (bool selected) {
+                                        setState(() {
+                                          _selectedBrand = null;
+                                          _applySortingAndFiltering();
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  ...filteredBrands.map((doc) {
+                                    final brandName = doc['name'] as String;
+                                    return Padding(
+                                      padding: EdgeInsets.only(
+                                        right: screenWidth > 600 ? 8.0 : 4.0,
+                                      ),
+                                      child: FilterChip(
+                                        label: Text(brandName),
+                                        selected: _selectedBrand == brandName,
+                                        onSelected: (bool selected) {
+                                          setState(() {
+                                            _selectedBrand =
+                                                selected ? brandName : null;
+                                            _applySortingAndFiltering();
+                                          });
+                                        },
+                                      ),
+                                    );
+                                  }).toList(),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      SizedBox(height: screenWidth > 600 ? 16.0 : 8.0),
+                      // Sort and search row
+                      Row(
+                        children: [
+                          // Search bar
+                          Expanded(
+                            child: TextField(
+                              decoration: InputDecoration(
+                                hintText: 'Tìm kiếm sản phẩm...',
+                                prefixIcon: const Icon(Icons.search),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onChanged: (value) {
+                                setState(() {
+                                  _searchQuery = value;
+                                  _applySortingAndFiltering();
+                                });
+                              },
+                            ),
+                          ),
+                          SizedBox(width: screenWidth > 600 ? 16.0 : 8.0),
+                          // Sort dropdown
+                          DropdownButton<String>(
+                            value: _sortBy,
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'newest',
+                                child: Text('Mới nhất'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'nameAZ',
+                                child: Text('Tên A-Z'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'nameZA',
+                                child: Text('Tên Z-A'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'priceLowHigh',
+                                child: Text('Giá tăng dần'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'priceHighLow',
+                                child: Text('Giá giảm dần'),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              setState(() {
+                                _sortBy = value!;
+                                _applySortingAndFiltering();
+                              });
+                            },
+                          ),
+                          SizedBox(width: screenWidth > 600 ? 16.0 : 8.0),
+                          // Price filter
+                          PriceRangeFilter(
+                            minPrice: _minPrice,
+                            maxPrice: _maxPrice,
+                            onMinPriceChanged: (value) {
+                              setState(() {
+                                _minPrice = value;
+                                _applySortingAndFiltering();
+                              });
+                            },
+                            onMaxPriceChanged: (value) {
+                              setState(() {
+                                _maxPrice = value;
+                                _applySortingAndFiltering();
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                // Show filtered products or categorized sections
+                if (_selectedCategory != null ||
+                    _selectedBrand != null ||
+                    _searchQuery.isNotEmpty)
+                  // Show filtered products
+                  _buildSection(
+                    'Kết quả tìm kiếm',
+                    _productDocs,
+                    false,
+                    false,
+                    () {},
+                  )
+                else
+                  // Show default sections
+                  Column(
+                    children: [
+                      _buildSection(
+                        'Sản phẩm mới',
+                        _newestProducts,
+                        _isLoadingNewest,
+                        _hasMoreNewest,
+                        () => _loadNewestProducts(loadMore: true),
+                      ),
+                      _buildSection(
+                        'Sản phẩm giảm giá',
+                        _saleProducts,
+                        _isLoadingSale,
+                        _hasMoreSale,
+                        () {}, // Implement logic for sale products
+                      ),
+                      ..._categories.map((category) {
+                        final categoryId = category.id;
+                        return _buildSection(
+                          category['name'] as String,
+                          _categoryProducts[categoryId] ?? [],
+                          _isLoadingCategory[categoryId] ?? false,
+                          _hasMoreCategory[categoryId] ?? false,
+                          () => _loadProductsByCategory(
+                            categoryId,
+                            loadMore: true,
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  ),
+                SizedBox(height: screenWidth > 600 ? 20.0 : 12.0),
+              ],
             ),
-            _buildSection(
-              'Sản phẩm giảm giá',
-              _saleProducts,
-              _isLoadingSale,
-              _hasMoreSale,
-              () {}, // Implement logic for sale products
-            ),
-            ..._categories.map((category) {
-              final categoryId = category.id;
-              return _buildSection(
-                category['name'] as String,
-                _categoryProducts[categoryId] ?? [],
-                _isLoadingCategory[categoryId] ?? false,
-                _hasMoreCategory[categoryId] ?? false,
-                () => _loadProductsByCategory(categoryId, loadMore: true),
-              );
-            }).toList(),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -364,6 +568,102 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildFilterOptions() {
     // Phần này bạn có thể tùy chỉnh hoặc bỏ qua nếu không cần bộ lọc
     return const SizedBox.shrink();
+  }
+
+  void _applySortingAndFiltering() {
+    // Function to filter and sort a list of products
+    List<DocumentSnapshot> filterAndSortProducts(
+      List<DocumentSnapshot> originalProducts,
+    ) {
+      // Create a copy of the original list
+      List<DocumentSnapshot> products = List.from(originalProducts);
+
+      // Get all products first
+      List<DocumentSnapshot> allProducts = [];
+      allProducts.addAll(_newestProducts);
+      _categoryProducts.forEach((_, products) {
+        allProducts.addAll(products);
+      });
+
+      // Remove duplicates based on document ID
+      final uniqueProducts = <String, DocumentSnapshot>{};
+      for (var doc in allProducts) {
+        uniqueProducts[doc.id] = doc;
+      }
+      products = uniqueProducts.values.toList();
+
+      // Apply category filter
+      if (_selectedCategory != null) {
+        products =
+            products.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              return data['categoryId'] == _selectedCategory;
+            }).toList();
+      }
+
+      // Apply brand filter
+      if (_selectedBrand != null) {
+        products =
+            products.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              return data['brand'] == _selectedBrand;
+            }).toList();
+      }
+
+      // Apply price range filter
+      if (_minPrice != null) {
+        products =
+            products.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              return (data['price'] as num) >= _minPrice!;
+            }).toList();
+      }
+      if (_maxPrice != null) {
+        products =
+            products.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              return (data['price'] as num) <= _maxPrice!;
+            }).toList();
+      }
+
+      // Apply search filter
+      if (_searchQuery.isNotEmpty) {
+        products =
+            products.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final name = (data['name'] as String).toLowerCase();
+              return name.contains(_searchQuery.toLowerCase());
+            }).toList();
+      }
+
+      // Apply sorting
+      products.sort((a, b) {
+        final aData = a.data() as Map<String, dynamic>;
+        final bData = b.data() as Map<String, dynamic>;
+
+        switch (_sortBy) {
+          case 'nameAZ':
+            return (aData['name'] as String).compareTo(bData['name'] as String);
+          case 'nameZA':
+            return (bData['name'] as String).compareTo(aData['name'] as String);
+          case 'priceLowHigh':
+            return (aData['price'] as num).compareTo(bData['price'] as num);
+          case 'priceHighLow':
+            return (bData['price'] as num).compareTo(aData['price'] as num);
+          case 'newest':
+          default:
+            return (bData['createdAt'] as Timestamp).compareTo(
+              aData['createdAt'] as Timestamp,
+            );
+        }
+      });
+
+      return products;
+    }
+
+    setState(() {
+      _productDocs = filterAndSortProducts([]);
+    });
   }
 
   @override
@@ -451,15 +751,6 @@ class _HomeScreenState extends State<HomeScreen> {
           _selectedIndex == 0
               ? _buildProductListView(_productDocs)
               : _screens[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Hồ sơ'),
-          BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Tư vấn'),
-        ],
-      ),
     );
   }
 }

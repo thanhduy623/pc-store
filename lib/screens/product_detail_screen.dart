@@ -199,42 +199,77 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             ),
             const Divider(height: 32),
 
+            // Mô tả sản phẩm
+            Text(
+              "Mô tả sản phẩm",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: Text(
+                widget.productData['description'] ??
+                    'Chưa có mô tả cho sản phẩm này.',
+                style: TextStyle(height: 1.5, color: Colors.grey[800]),
+              ),
+            ),
+            const Divider(height: 32),
+
             // Thông số kỹ thuật
             Text(
               "Thông số kỹ thuật",
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             ),
             const SizedBox(height: 8),
-            if (attributes.isNotEmpty)
-              Table(
-                columnWidths: const {
-                  0: FixedColumnWidth(120),
-                  1: FlexColumnWidth(),
-                },
-                border: TableBorder.all(color: Colors.grey.shade300),
-                children:
-                    attributes.entries.map((entry) {
-                      return TableRow(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Text(
-                              entry.key,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+            Table(
+              columnWidths: const {
+                0: FixedColumnWidth(120),
+                1: FlexColumnWidth(),
+              },
+              border: TableBorder.all(color: Colors.grey[200]!),
+              children: [
+                TableRow(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(
+                        'Thương hiệu',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(
+                        widget.productData['brand'] ?? 'Chưa có thông tin',
+                      ),
+                    ),
+                  ],
+                ),
+                if (attributes.isNotEmpty)
+                  ...attributes.entries.map((entry) {
+                    return TableRow(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(
+                            entry.key,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Text(_safeToString(entry.value)),
-                          ),
-                        ],
-                      );
-                    }).toList(),
-              )
-            else
-              const Text("Không có thông số kỹ thuật."),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(_safeToString(entry.value)),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+              ],
+            ),
             const Divider(height: 32),
 
             // Đánh giá sản phẩm

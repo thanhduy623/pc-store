@@ -128,29 +128,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         ],
       ),
       body: _screens[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Hồ sơ'),
-          BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Tin nhắn'),
-        ],
-      ),
-      floatingActionButton:
-          _selectedIndex == 0
-              ? FloatingActionButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ProductFormScreen(),
-                    ),
-                  );
-                },
-                child: const Icon(Icons.add),
-              )
-              : null,
     );
   }
 }

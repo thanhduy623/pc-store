@@ -63,6 +63,8 @@ class _TestState extends State<Test> {
           'Hệ điều hành': 'Windows 10',
           'Pin': '${8 + i} giờ',
         },
+        'brand': i % 2 == 0 ? 'Dell' : 'Lenovo',
+        'description': 'Máy tính hiệu năng cao với CPU Intel i7 thế hệ mới',
       };
       await FirebaseFirestore.instance.collection('products').add(productData);
     }
@@ -87,6 +89,8 @@ class _TestState extends State<Test> {
           'Loại cảm biến': 'Optical',
           'LED RGB': (i % 2 == 0) ? 'Có' : 'Không',
         },
+        'brand': i % 2 == 0 ? 'Logitech' : 'Razer',
+        'description': 'Chuột chất lượng cao',
       };
       await FirebaseFirestore.instance.collection('products').add(productData);
     }
@@ -111,6 +115,8 @@ class _TestState extends State<Test> {
           'Layout': 'US',
           'Chống ghosting': i % 2 == 0 ? 'Có' : 'Không',
         },
+        'brand': i % 2 == 0 ? 'Corsair' : 'Ducky',
+        'description': 'Bàn phím chất lượng cao',
       };
       await FirebaseFirestore.instance.collection('products').add(productData);
     }
@@ -135,6 +141,8 @@ class _TestState extends State<Test> {
           'Chuẩn giao tiếp': 'PCIe 4.0',
           'Hãng sản xuất': 'Corsair',
         },
+        'brand': i % 2 == 0 ? 'Kingston' : 'Samsung',
+        'description': 'Bộ nhớ chất lượng cao',
       };
       await FirebaseFirestore.instance.collection('products').add(productData);
     }
@@ -159,6 +167,8 @@ class _TestState extends State<Test> {
           'HDR': i % 2 == 0 ? 'Có' : 'Không',
           'Cổng kết nối': 'HDMI',
         },
+        'brand': 'Samsung',
+        'description': 'Màn hình chất lượng cao',
       };
       await FirebaseFirestore.instance.collection('products').add(productData);
     }

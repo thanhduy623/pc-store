@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:my_store/utils/sendOrderMail.dart';
+import 'package:my_store/screens/Home.dart';
 
 class ConfirmPage extends StatefulWidget {
   final List<Product> selectedProducts;
@@ -167,7 +168,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
       );
 
       // Cập nhật điểm
-      updateUserPointsIfExists();
+      await updateUserPointsIfExists(orderId); // Pass orderId
 
       // Cập nhật mã giảm giá (nếu có nhập)
       String discountCode = discountCodeController.text.trim();
@@ -187,6 +188,15 @@ class _ConfirmPageState extends State<ConfirmPage> {
 
       // Xóa giỏ hàng
       await _removeOrderedProductsFromCart();
+
+      // Navigate to home screen
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const HomeScreen(),
+        ), // Replace MyHomePage() with your actual home page widget
+        (route) => false, // Remove all previous routes
+      );
     } catch (e) {
       print("Lỗi khi lưu đơn hàng: $e");
       ScaffoldMessenger.of(context).showSnackBar(
@@ -195,7 +205,8 @@ class _ConfirmPageState extends State<ConfirmPage> {
     }
   }
 
-  void updateUserPointsIfExists() async {
+  Future<void> updateUserPointsIfExists(String orderId) async {
+    // Add orderId
     try {
       final email = emailController.text.trim();
 
@@ -217,15 +228,27 @@ class _ConfirmPageState extends State<ConfirmPage> {
                 : 0;
 
         // Tính điểm mới cộng thêm
-        double earnedPoints = (total * 10 / 100) / 1000;
+        double earnedPoints = (total * 10 / 100) / 1000; // 10% of total / 1000
         double usedPoints = double.tryParse(pointsController.text) ?? 0;
         double updatedPoints = currentPoints - usedPoints + earnedPoints;
 
         if (updatedPoints < 0) updatedPoints = 0;
 
-        // Cập nhật lại điểm
+        // Cập nhật lại điểm và lịch sử điểm
         await FirebaseFirestore.instance.collection('users').doc(doc.id).update(
-          {'point': updatedPoints},
+          {
+            'point': updatedPoints,
+            'pointHistory': FieldValue.arrayUnion([
+              // Store history
+              {
+                'orderId': orderId, // Store orderId
+                'pointsEarned': earnedPoints,
+                'pointsUsed': usedPoints,
+                'timestamp': DateTime.now(),
+                'totalOrderValue': total,
+              },
+            ]),
+          },
         );
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -235,7 +258,9 @@ class _ConfirmPageState extends State<ConfirmPage> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Không tìm thấy người dùng với email này")),
+          const SnackBar(
+            content: Text("Không tìm thấy người dùng với email này"),
+          ),
         );
       }
     } catch (e) {
@@ -570,7 +595,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
               if (enteredPoints > userPoints) {
                 pointsController.text = userPoints.toString();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
+                  const SnackBar(
                     content: Text("Số điểm không thể lớn hơn điểm hiện có"),
                   ),
                 );
