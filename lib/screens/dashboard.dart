@@ -560,7 +560,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }) {
     return SizedBox(
       width: width,
-      height: 180,
+      height: 200,
       child: Card(
         elevation: 4,
         child: Padding(
@@ -601,7 +601,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildTimePeriodDropdown(BuildContext context, {double? width}) {
     return SizedBox(
       width: width,
-      height: 150,
+      height: 200,
       child: Card(
         elevation: 4,
         child: Padding(
@@ -685,7 +685,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildRevenueChartCard({double? width}) {
     return SizedBox(
       width: width,
-      height: 200,
+      height: 300,
       child: Card(
         elevation: 4,
         child: Padding(
@@ -923,7 +923,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildOrderListCard({double? width}) {
     return SizedBox(
       width: width,
-      height: 200,
+      height: 300,
       child: Card(
         elevation: 4,
         child: Padding(
@@ -955,7 +955,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             style: const TextStyle(fontSize: 14),
                           ),
                           Text(
-                            '\$${moneyFormat(order.total)}',
+                            '${moneyFormat(order.total)}',
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,

@@ -24,12 +24,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     _selectedIndex = 0; // Đảm bảo rằng trang Dashboard là trang đầu tiên
   }
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
   final List<Widget> _screens = [
     const DashboardScreen(), // Trang mặc định
     const ProfileScreen(),
@@ -53,12 +47,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             ),
             onSelected: (value) {
               switch (value) {
-                case 'profile':
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                  );
-                  break;
                 case 'manage_categories':
                   Navigator.push(
                     context,
@@ -95,13 +83,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             },
             itemBuilder:
                 (context) => [
-                  const PopupMenuItem(
-                    value: 'profile',
-                    child: ListTile(
-                      leading: Icon(Icons.person),
-                      title: Text('Hồ sơ cá nhân'),
-                    ),
-                  ),
                   const PopupMenuItem(
                     value: 'manage_categories',
                     child: ListTile(
