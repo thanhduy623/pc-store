@@ -22,7 +22,8 @@ class _LoginDialogState extends State<LoginDialog> {
 
   // Đăng nhập bằng email + mật khẩu
   void login() async {
-    String email = emailController.text.trim();
+    String email =
+        emailController.text.trim().toLowerCase(); // Changed to lowerCase()
     final password = passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
@@ -33,8 +34,10 @@ class _LoginDialogState extends State<LoginDialog> {
     }
 
     // Check and fix email format if needed
-    if (!isValidEmail(email)) {
+    if (!isValidEmailFormat(email)) {
+      // Changed to isValidEmailFormat
       email = "$email@gmail.com";
+      emailController.text = email; // Update the controller's text
     }
 
     final user = await _auth.signIn(email, password);
@@ -48,11 +51,26 @@ class _LoginDialogState extends State<LoginDialog> {
               .get();
 
       if (userDoc.exists) {
+        final isBlocked =
+            userDoc.data()?['isBlocked'] as bool? ??
+            false; // Check for isBlocked
+        if (isBlocked) {
+          await FirebaseAuth.instance.signOut();
+          setState(() {
+            loginResult = "Tài khoản của bạn đã bị khóa.";
+          });
+          return;
+        }
+
         final role =
-            userDoc.data()?['role']; // Assuming 'role' is stored in Firestore
+            userDoc
+                .data()?['role']
+                ?.toString()
+                .toLowerCase(); // Assuming 'role' is stored in Firestore
 
         // Navigate to Admin Chat Screen if role is "Admin"
-        if (role == "Admin") {
+        if (role == "admin") {
+          // Changed to lower case "admin"
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const HomeScreenAdmin()),
@@ -68,6 +86,7 @@ class _LoginDialogState extends State<LoginDialog> {
         setState(() {
           loginResult = "Không tìm thấy thông tin người dùng";
         });
+        await FirebaseAuth.instance.signOut(); // Sign out if user doc not found
       }
     } else {
       setState(() {
@@ -77,7 +96,8 @@ class _LoginDialogState extends State<LoginDialog> {
   }
 
   // Helper function to validate email format
-  bool isValidEmail(String email) {
+  bool isValidEmailFormat(String email) {
+    // Changed function name
     // Regular expression to check if the email is valid
     final emailRegExp = RegExp(
       r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
@@ -91,6 +111,14 @@ class _LoginDialogState extends State<LoginDialog> {
     if (email.isEmpty) {
       setState(() {
         loginResult = "Vui lòng nhập email để khôi phục";
+      });
+      return;
+    }
+
+    if (!isValidEmailFormat(email)) {
+      // Changed to isValidEmailFormat
+      setState(() {
+        loginResult = "Email không hợp lệ";
       });
       return;
     }
@@ -111,10 +139,41 @@ class _LoginDialogState extends State<LoginDialog> {
   void loginWithGoogle() async {
     final user = await _auth.signInWithGoogle();
     if (user != null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
+      // Fetch user data and role after Google sign-in
+      final userDoc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+
+      if (userDoc.exists) {
+        final isBlocked = userDoc.data()?['isBlocked'] as bool? ?? false;
+        if (isBlocked) {
+          await FirebaseAuth.instance.signOut();
+          setState(() {
+            loginResult = "Tài khoản của bạn đã bị khóa.";
+          });
+          return;
+        }
+
+        final role = userDoc.data()?['role']?.toString().toLowerCase();
+        if (role == "admin") {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const HomeScreenAdmin()),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+          );
+        }
+      } else {
+        setState(() {
+          loginResult = "Không tìm thấy thông tin người dùng.";
+        });
+        await FirebaseAuth.instance.signOut();
+      }
     } else {
       setState(() {
         loginResult = "Đăng nhập Google thất bại";

@@ -560,7 +560,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }) {
     return SizedBox(
       width: width,
-      height: 200,
+      height: 150,
       child: Card(
         elevation: 4,
         child: Padding(
@@ -601,7 +601,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildTimePeriodDropdown(BuildContext context, {double? width}) {
     return SizedBox(
       width: width,
-      height: 200,
+      height: 150,
       child: Card(
         elevation: 4,
         child: Padding(

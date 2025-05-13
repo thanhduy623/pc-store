@@ -6,6 +6,7 @@ import 'profile_screen.dart';
 import 'package:my_store/screens/ManageProduct.dart';
 import 'package:my_store/screens/DiscountManagerPage.dart';
 import 'package:my_store/screens/dashboard.dart';
+import 'package:my_store/screens/ManageUser.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
@@ -69,6 +70,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     ),
                   );
                   break;
+                case 'manage_users':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const UserManagementScreen(),
+                    ),
+                  );
+                  break;
                 case 'chat':
                   Navigator.push(
                     context,
@@ -102,6 +111,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                     child: ListTile(
                       leading: Icon(Icons.local_offer),
                       title: Text('Quản lý giảm giá'),
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'manage_users',
+                    child: ListTile(
+                      leading: Icon(Icons.person),
+                      title: Text('Quản lý người dùng'),
                     ),
                   ),
                   const PopupMenuItem(

@@ -21,7 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Đăng nhập bằng email + mật khẩu
   void login() async {
-    final email = emailController.text.trim();
+    String email = emailController.text.trim().toLowerCase();
     final password = passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
@@ -29,22 +29,38 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    if (!isValidEmail(email)) {
-      showSnackBar("Email không hợp lệ");
-      return;
+    if (!isValidEmailFormat(email)) {
+      email = '$email@gmail.com';
+      emailController.text = email;
     }
 
     final user = await _auth.signIn(email, password);
 
     if (user != null) {
-      await _navigateBasedOnRole(user.uid);
+      final userDoc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+      if (userDoc.exists) {
+        final isBlocked = userDoc.data()?['isBlocked'] as bool? ?? false;
+        if (isBlocked) {
+          await FirebaseAuth.instance.signOut();
+          showSnackBar("Tài khoản của bạn đã bị khóa.");
+          return;
+        }
+        await _navigateBasedOnRole(user.uid);
+      } else {
+        showSnackBar("Không tìm thấy thông tin người dùng.");
+        await FirebaseAuth.instance.signOut();
+      }
     } else {
       showSnackBar("Đăng nhập thất bại");
     }
   }
 
-  // Validate email
-  bool isValidEmail(String email) {
+  // Validate email format
+  bool isValidEmailFormat(String email) {
     final emailRegExp = RegExp(
       r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
     );
@@ -80,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    if (!isValidEmail(email)) {
+    if (!isValidEmailFormat(email)) {
       showSnackBar("Email không hợp lệ");
       return;
     }
@@ -97,15 +113,6 @@ class _LoginScreenState extends State<LoginScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  void loginWithGoogle() async {
-    final user = await _auth.signInWithGoogle();
-    if (user != null) {
-      await _navigateBasedOnRole(user.uid);
-    } else {
-      showSnackBar("Đăng nhập Google thất bại");
-    }
   }
 
   @override
@@ -172,16 +179,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ElevatedButton(
                   onPressed: login,
                   child: const Text('Đăng nhập'),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: loginWithGoogle,
-                  icon: const Icon(Icons.login),
-                  label: const Text('Đăng nhập bằng Google'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.redAccent,
-                    foregroundColor: Colors.white,
-                  ),
                 ),
                 const SizedBox(height: 16),
                 Row(
