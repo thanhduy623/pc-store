@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:my_store/screens/OrderDetailPage.dart';
+import 'package:my_store/utils/moneyFormat.dart' as util;
 
 class OrderListPage extends StatefulWidget {
   const OrderListPage({super.key});
@@ -74,7 +75,7 @@ class _OrderListPageState extends State<OrderListPage> {
                 'discountFromPoints':
                     data['discountFromPoints']?.toDouble() ?? 0.0,
                 'email': data['email'] ?? '',
-                'phone': data['phone'] ?? '',
+                'phoneNumber': data['phoneNumber'] ?? '',
                 'fullName': data['fullName'] ?? '',
                 'shippingAddress': data['shippingAddress'] ?? '',
                 'items': items,
@@ -155,7 +156,7 @@ class _OrderListPageState extends State<OrderListPage> {
                   Text('Ngày đặt: ${order['orderDate']}'),
                   const SizedBox(height: 8),
                   Text(
-                    'Tổng tiền: ${moneyFormat(order['totalAmount'])} (${order['items'].length} sản phẩm)',
+                    'Tổng tiền: ${util.moneyFormat(order['totalAmount'])} (${order['items'].length} sản phẩm)',
                     style: const TextStyle(fontSize: 14),
                   ),
                   const SizedBox(height: 8),
@@ -173,10 +174,6 @@ class _OrderListPageState extends State<OrderListPage> {
         );
       },
     );
-  }
-
-  String moneyFormat(double amount) {
-    return '${amount.toStringAsFixed(0)}đ';
   }
 
   Color _getStatusColor(String status) {

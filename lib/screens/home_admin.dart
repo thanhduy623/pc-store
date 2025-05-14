@@ -16,13 +16,6 @@ class HomeScreenAdmin extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreenAdmin> {
   int _selectedIndex = 0;
 
-  // Function to handle navigation based on selected index.
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
   // List of screens to navigate to for each bottom navigation item.
   final List<Widget> _screens = [
     const HomeScreenContent(), // Home Screen content
@@ -32,8 +25,6 @@ class _HomeScreenState extends State<HomeScreenAdmin> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    final displayName = user?.displayName ?? 'Quản trị viên';
-    final email = user?.email ?? '';
     final photoURL = user?.photoURL;
 
     return Scaffold(

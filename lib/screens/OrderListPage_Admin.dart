@@ -75,12 +75,12 @@ class _OrderListPageState extends State<OrderListPage> {
     if (snapshot.docs.isNotEmpty) {
       final newOrders =
           snapshot.docs.map((doc) {
+            // Lấy toàn bộ dữ liệu của document
+            final data = doc.data() as Map<String, dynamic>;
+
             return {
               'id': doc.id,
-              'status': doc['status'],
-              'total': doc['total'],
-              'shippingAddress': doc['shippingAddress'],
-              'orderDate': doc['orderDate'],
+              ...data, // Sử dụng spread operator để thêm tất cả các trường từ data
             };
           }).toList();
 
@@ -108,8 +108,12 @@ class _OrderListPageState extends State<OrderListPage> {
     final orderRef = FirebaseFirestore.instance
         .collection('orders')
         .doc(orderId);
-    final currentOrder = orders.firstWhere((order) => order['id'] == orderId);
-    final statusMap = Map<String, dynamic>.from(currentOrder['status']);
+    final orderIndex = orders.indexWhere((order) => order['id'] == orderId);
+    if (orderIndex == -1) return;
+
+    final statusMap = Map<String, dynamic>.from(
+      orders[orderIndex]['status'] ?? {},
+    );
 
     final nextStatus = _getNextStatus(currentStatus);
     if (nextStatus != null) {
@@ -117,9 +121,13 @@ class _OrderListPageState extends State<OrderListPage> {
         'status': {...statusMap, nextStatus: Timestamp.now()},
       });
 
-      // Cập nhật trạng thái ngay trong danh sách mà không cần tải lại tất cả
+      // Cập nhật trạng thái và latestStatus trong danh sách orders
       setState(() {
-        currentOrder['status'] = {...statusMap, nextStatus: Timestamp.now()};
+        orders[orderIndex]['status'] = {
+          ...statusMap,
+          nextStatus: Timestamp.now(),
+        };
+        orders[orderIndex]['latestStatus'] = nextStatus;
       });
     }
   }

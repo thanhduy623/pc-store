@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:my_store/models/product.dart';
 import 'package:my_store/screens/ConfirmOrderPage.dart';
-import 'package:my_store/services/firebase/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:my_store/screens/LoginDialog.dart';
 import 'package:my_store/utils/moneyFormat.dart' as utils;
@@ -18,7 +17,6 @@ class CartPage extends StatefulWidget {
 
 class _CartPageState extends State<CartPage> {
   List<Product> listItems = [];
-  final AuthService _auth = AuthService();
 
   @override
   void initState() {
@@ -126,7 +124,9 @@ class _CartPageState extends State<CartPage> {
               TextButton(
                 onPressed: () {
                   Navigator.of(context).pop();
-                  _showLoginDialog();
+                  _showLoginDialog(
+                    selectedProducts,
+                  ); // Truyền danh sách sản phẩm đã chọn
                 },
                 child: const Text('Có'),
               ),
@@ -137,11 +137,14 @@ class _CartPageState extends State<CartPage> {
     }
   }
 
-  void _showLoginDialog() {
+  void _showLoginDialog(List<Product> selectedProducts) {
+    // Nhận danh sách sản phẩm
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return const LoginDialog();
+        return LoginDialog(
+          selectedProducts: selectedProducts,
+        ); // Truyền danh sách sản phẩm vào dialog
       },
     );
   }

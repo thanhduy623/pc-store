@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // For Firestore
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firebase/auth_service.dart';
-import 'home_admin.dart';
-import 'Home.dart';
+import '../models/product.dart';
+import 'ConfirmOrderPage.dart';
 
 class LoginDialog extends StatefulWidget {
-  const LoginDialog({super.key});
+  final List<Product> selectedProducts;
+
+  const LoginDialog({super.key, required this.selectedProducts});
 
   @override
   _LoginDialogState createState() => _LoginDialogState();
@@ -22,8 +24,7 @@ class _LoginDialogState extends State<LoginDialog> {
 
   // Đăng nhập bằng email + mật khẩu
   void login() async {
-    String email =
-        emailController.text.trim().toLowerCase(); // Changed to lowerCase()
+    String email = emailController.text.trim().toLowerCase();
     final password = passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
@@ -33,17 +34,15 @@ class _LoginDialogState extends State<LoginDialog> {
       return;
     }
 
-    // Check and fix email format if needed
     if (!isValidEmailFormat(email)) {
-      // Changed to isValidEmailFormat
       email = "$email@gmail.com";
-      emailController.text = email; // Update the controller's text
+      emailController.text = email;
     }
 
     final user = await _auth.signIn(email, password);
 
     if (user != null) {
-      // Fetch role from Firestore after login
+      // Fetch role from Firestore (you might not need the role check here if the flow is just for checkout)
       final userDoc =
           await FirebaseFirestore.instance
               .collection('users')
@@ -51,9 +50,7 @@ class _LoginDialogState extends State<LoginDialog> {
               .get();
 
       if (userDoc.exists) {
-        final isBlocked =
-            userDoc.data()?['isBlocked'] as bool? ??
-            false; // Check for isBlocked
+        final isBlocked = userDoc.data()?['isBlocked'] as bool? ?? false;
         if (isBlocked) {
           await FirebaseAuth.instance.signOut();
           setState(() {
@@ -62,31 +59,23 @@ class _LoginDialogState extends State<LoginDialog> {
           return;
         }
 
-        final role =
-            userDoc
-                .data()?['role']
-                ?.toString()
-                .toLowerCase(); // Assuming 'role' is stored in Firestore
-
-        // Navigate to Admin Chat Screen if role is "Admin"
-        if (role == "admin") {
-          // Changed to lower case "admin"
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomeScreenAdmin()),
-          );
-        } else {
-          // Navigate to Home Screen for other roles
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-          );
-        }
+        // Đăng nhập thành công, chuyển đến trang xác nhận đơn hàng
+        Navigator.of(context).pop(); // Đóng dialog
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder:
+                (context) => ConfirmPage(
+                  selectedProducts: widget.selectedProducts,
+                  userEmail: user.email,
+                ),
+          ),
+        );
       } else {
         setState(() {
           loginResult = "Không tìm thấy thông tin người dùng";
         });
-        await FirebaseAuth.instance.signOut(); // Sign out if user doc not found
+        await FirebaseAuth.instance.signOut();
       }
     } else {
       setState(() {
@@ -97,8 +86,6 @@ class _LoginDialogState extends State<LoginDialog> {
 
   // Helper function to validate email format
   bool isValidEmailFormat(String email) {
-    // Changed function name
-    // Regular expression to check if the email is valid
     final emailRegExp = RegExp(
       r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
     );
@@ -116,7 +103,6 @@ class _LoginDialogState extends State<LoginDialog> {
     }
 
     if (!isValidEmailFormat(email)) {
-      // Changed to isValidEmailFormat
       setState(() {
         loginResult = "Email không hợp lệ";
       });
@@ -135,52 +121,6 @@ class _LoginDialogState extends State<LoginDialog> {
     }
   }
 
-  // Đăng nhập bằng Google
-  void loginWithGoogle() async {
-    final user = await _auth.signInWithGoogle();
-    if (user != null) {
-      // Fetch user data and role after Google sign-in
-      final userDoc =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .get();
-
-      if (userDoc.exists) {
-        final isBlocked = userDoc.data()?['isBlocked'] as bool? ?? false;
-        if (isBlocked) {
-          await FirebaseAuth.instance.signOut();
-          setState(() {
-            loginResult = "Tài khoản của bạn đã bị khóa.";
-          });
-          return;
-        }
-
-        final role = userDoc.data()?['role']?.toString().toLowerCase();
-        if (role == "admin") {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomeScreenAdmin()),
-          );
-        } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-          );
-        }
-      } else {
-        setState(() {
-          loginResult = "Không tìm thấy thông tin người dùng.";
-        });
-        await FirebaseAuth.instance.signOut();
-      }
-    } else {
-      setState(() {
-        loginResult = "Đăng nhập Google thất bại";
-      });
-    }
-  }
-
   @override
   void dispose() {
     emailController.dispose();
@@ -194,28 +134,25 @@ class _LoginDialogState extends State<LoginDialog> {
       title: const Text('Đăng nhập'),
       content: SingleChildScrollView(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch, // Stretch children
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Email TextField
             TextField(
               controller: emailController,
               decoration: const InputDecoration(
                 labelText: 'Email',
-                isDense: true, // Makes the field take up more width
+                isDense: true,
               ),
               onSubmitted: (value) {
                 login();
               },
             ),
             const SizedBox(height: 10),
-
-            // Password TextField
             TextField(
               controller: passwordController,
               obscureText: _obscurePassword,
               decoration: InputDecoration(
                 labelText: 'Mật khẩu',
-                isDense: true, // Makes the field take up more width
+                isDense: true,
                 suffixIcon: IconButton(
                   icon: Icon(
                     _obscurePassword ? Icons.visibility_off : Icons.visibility,
@@ -239,29 +176,14 @@ class _LoginDialogState extends State<LoginDialog> {
               ),
             ),
             const SizedBox(height: 20),
-
-            // Login Button
             ElevatedButton(
               onPressed: login,
               style: ElevatedButton.styleFrom(
-                minimumSize: Size.fromHeight(45), // Makes button larger
+                minimumSize: const Size.fromHeight(45),
               ),
               child: const Text('Đăng nhập'),
             ),
             const SizedBox(height: 10),
-
-            // Google Login Button
-            ElevatedButton.icon(
-              onPressed: loginWithGoogle,
-              icon: const Icon(Icons.login),
-              label: const Text('Đăng nhập bằng Google'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                minimumSize: Size.fromHeight(45), // Makes button larger
-              ),
-            ),
-            const SizedBox(height: 10),
-            // Display the login result message
             if (loginResult.isNotEmpty)
               Text(
                 loginResult,
@@ -270,10 +192,24 @@ class _LoginDialogState extends State<LoginDialog> {
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
+                textAlign: TextAlign.center,
               ),
           ],
         ),
       ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop(); // Đóng dialog khi chưa đăng nhập
+            if (loginResult.isNotEmpty) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(loginResult)));
+            }
+          },
+          child: const Text('Hủy'),
+        ),
+      ],
     );
   }
 }

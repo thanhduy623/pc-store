@@ -57,9 +57,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             userDoc.data() as Map<String, dynamic>; // Cast the data
         _fullNameController.text = userData['fullName'] ?? '';
         _addressController.text = userData['shippingAddress'] ?? '';
-        _phoneController.text = userData['phone'] ?? ''; // Load số điện thoại
+        _phoneController.text = userData['phoneNumber'] ?? '';
         _avatarBase64 = userData['avatar'];
-        _userPoints = userData['points'] ?? 0; // Load điểm
+        _userPoints = userData['point'] ?? 0;
 
         // Chuyển đổi base64 thành Uint8List để hiển thị ảnh
         if (_avatarBase64 != null) {
@@ -85,7 +85,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             'shippingAddress': '',
             'phone': '', // Khởi tạo số điện thoại
             'avatar': null,
-            'points': 0, // Khởi tạo điểm
           },
         );
         _loadUserData(); //load lại để hiển thị

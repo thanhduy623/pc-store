@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'AddDiscountPage.dart';
 import 'package:intl/intl.dart';
-import 'OrderDetailPage.dart'; // Import OrderDetailPage
+import 'OrderDetailPage.dart';
 
 class DiscountManagerPage extends StatefulWidget {
   const DiscountManagerPage({super.key});

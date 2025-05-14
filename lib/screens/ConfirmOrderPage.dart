@@ -106,16 +106,11 @@ class _ConfirmPageState extends State<ConfirmPage> {
 
       if (querySnapshot.docs.isNotEmpty) {
         var userData = querySnapshot.docs.first.data() as Map<String, dynamic>;
-        String address =
-            "${userData['shippingAddress']}, "
-            "${userData['ward']}, "
-            "${userData['district']}, "
-            "${userData['province']}";
 
         emailController.text = userData['email'] ?? '';
         nameController.text = userData['fullName'] ?? '';
-        phoneController.text = userData['phone'] ?? '';
-        addressController.text = address;
+        phoneController.text = userData['phoneNumber'] ?? '';
+        addressController.text = userData['shippingAddress'] ?? '';
 
         setState(() {
           isEmailReadOnly = true;
@@ -134,7 +129,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
     try {
       final orderData = {
         'fullName': nameController.text.trim(),
-        'phone': phoneController.text.trim(),
+        'phoneNumber': phoneController.text.trim(),
         'email': emailController.text.trim(),
         'shippingAddress': addressController.text.trim(),
         'subtotal': subtotal,
@@ -227,33 +222,23 @@ class _ConfirmPageState extends State<ConfirmPage> {
                 ? (data['point'] as int)
                 : 0;
 
-        // Tính điểm mới cộng thêm
-        double earnedPoints = (total * 10 / 100) / 1000; // 10% of total / 1000
-        double usedPoints = double.tryParse(pointsController.text) ?? 0;
-        double updatedPoints = currentPoints - usedPoints + earnedPoints;
-
+        double earnedPointsDouble = (total * 10 / 100) / 1000; // 10%
+        int earnedPoints = earnedPointsDouble.round();
+        double usedPointsDouble = double.tryParse(pointsController.text) ?? 0;
+        int usedPoints = usedPointsDouble.round();
+        int updatedPoints = currentPoints - usedPoints + earnedPoints;
         if (updatedPoints < 0) updatedPoints = 0;
 
         // Cập nhật lại điểm và lịch sử điểm
         await FirebaseFirestore.instance.collection('users').doc(doc.id).update(
-          {
-            'point': updatedPoints,
-            'pointHistory': FieldValue.arrayUnion([
-              // Store history
-              {
-                'orderId': orderId, // Store orderId
-                'pointsEarned': earnedPoints,
-                'pointsUsed': usedPoints,
-                'timestamp': DateTime.now(),
-                'totalOrderValue': total,
-              },
-            ]),
-          },
+          {'point': updatedPoints},
         );
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Cập nhật điểm thành công: $updatedPoints điểm"),
+            content: Text(
+              "Cập nhật điểm thành công: Thêm $earnedPoints điểm, tổng $updatedPoints điểm",
+            ),
           ),
         );
       } else {
@@ -323,7 +308,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
               .set({
                 'email': email,
                 'fullName': nameController.text.trim(),
-                'phone': phoneController.text.trim(),
+                'phoneNumber': phoneController.text.trim(),
                 'shippingAddress': addressController.text.trim(),
                 'point': 0,
                 'createdAt': Timestamp.now(),
@@ -353,7 +338,6 @@ class _ConfirmPageState extends State<ConfirmPage> {
           if (userDoc.exists) {
             Map<String, dynamic> userData =
                 userDoc.data() as Map<String, dynamic>;
-            // Bạn có thể làm gì đó với dữ liệu người dùng nếu cần
           }
 
           ScaffoldMessenger.of(context).showSnackBar(
@@ -608,7 +592,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
         TextField(
           controller: discountCodeController,
           decoration: const InputDecoration(
-            hintText: "Nhập mã giảm giá (ví dụ: IT50)",
+            hintText: "Nhập mã giảm giá (ví dụ: PRO20)",
           ),
         ),
       ],

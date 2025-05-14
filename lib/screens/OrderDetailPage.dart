@@ -25,7 +25,7 @@ class OrderDetailPage extends StatelessWidget {
                 _buildSectionTitle('THÔNG TIN NGƯỜI NHẬN'),
                 _buildOrderDetailRow('Họ tên:', order['fullName']),
                 _buildOrderDetailRow('Email:', order['email']),
-                _buildOrderDetailRow('SĐT:', order['phone']),
+                _buildOrderDetailRow('SĐT:', order['phoneNumber']),
                 _buildOrderDetailRow('Địa chỉ:', order['shippingAddress']),
                 const SizedBox(height: 16),
 

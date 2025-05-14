@@ -406,6 +406,87 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       SizedBox(height: screenWidth > 600 ? 16.0 : 8.0),
 
+                      // Brands row
+                      if (_selectedCategory != null)
+                        StreamBuilder<QuerySnapshot>(
+                          stream:
+                              FirebaseFirestore.instance
+                                  .collection('products')
+                                  .where(
+                                    'categoryId',
+                                    isEqualTo: _selectedCategory,
+                                  )
+                                  .snapshots(),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData)
+                              return const CircularProgressIndicator();
+
+                            // Get unique brands
+                            final brands =
+                                snapshot.data!.docs
+                                    .map(
+                                      (doc) =>
+                                          (doc.data()
+                                                  as Map<
+                                                    String,
+                                                    dynamic
+                                                  >)['brand']
+                                              as String,
+                                    )
+                                    .where(
+                                      (brand) =>
+                                          brand != null && brand.isNotEmpty,
+                                    )
+                                    .toSet()
+                                    .toList()
+                                  ..sort();
+
+                            if (brands.isEmpty) return const SizedBox.shrink();
+
+                            return SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  Padding(
+                                    padding: EdgeInsets.only(
+                                      right: screenWidth > 600 ? 8.0 : 4.0,
+                                    ),
+                                    child: FilterChip(
+                                      label: const Text('Tất cả thương hiệu'),
+                                      selected: _selectedBrand == null,
+                                      onSelected: (bool selected) {
+                                        setState(() {
+                                          _selectedBrand = null;
+                                          _applySortingAndFiltering();
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  ...brands.map((brand) {
+                                    return Padding(
+                                      padding: EdgeInsets.only(
+                                        right: screenWidth > 600 ? 8.0 : 4.0,
+                                      ),
+                                      child: FilterChip(
+                                        label: Text(brand),
+                                        selected: _selectedBrand == brand,
+                                        onSelected: (bool selected) {
+                                          setState(() {
+                                            _selectedBrand =
+                                                selected ? brand : null;
+                                            _applySortingAndFiltering();
+                                          });
+                                        },
+                                      ),
+                                    );
+                                  }).toList(),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      SizedBox(height: screenWidth > 600 ? 16.0 : 8.0),
+
                       // Search and sort row
                       Row(
                         children: [
@@ -586,7 +667,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   final List<Widget> _screens = [
-    const SizedBox(), // Trang chủ - sẽ được build ở body
+    const SizedBox(),
     const ProfileScreen(),
     UserChatScreen(),
   ];
@@ -688,98 +769,79 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Trang chủ'),
         actions: [
-          if (_user != null)
-            PopupMenuButton<String>(
-              icon: CircleAvatar(
-                backgroundImage:
-                    _user?.photoURL != null
-                        ? NetworkImage(_user!.photoURL!)
-                        : null,
-                child:
-                    _user?.photoURL == null ? const Icon(Icons.person) : null,
+          _user != null
+              ? PopupMenuButton<String>(
+                icon: CircleAvatar(
+                  backgroundImage:
+                      _user?.photoURL != null
+                          ? NetworkImage(_user!.photoURL!)
+                          : null,
+                  child:
+                      _user?.photoURL == null ? const Icon(Icons.person) : null,
+                ),
+                onSelected: (value) {
+                  switch (value) {
+                    case 'profile':
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ProfileScreen(),
+                        ),
+                      );
+                      break;
+                    case 'cart':
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const CartPage()),
+                      );
+                      break;
+                    case 'orders':
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const OrderListPage(),
+                        ),
+                      );
+                      break;
+                    case 'chat_user':
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => UserChatScreen()),
+                      );
+                      break;
+                    case 'logout':
+                      FirebaseAuth.instance.signOut();
+                      Navigator.pushReplacementNamed(context, '/login');
+                      break;
+                  }
+                },
+                itemBuilder:
+                    (context) => [
+                      _buildMenuItem('profile', Icons.person, 'Hồ sơ cá nhân'),
+                      _buildMenuItem(
+                        'cart',
+                        Icons.shopping_cart,
+                        'Giỏ hàng của tôi',
+                      ),
+                      _buildMenuItem(
+                        'orders',
+                        Icons.list_alt,
+                        'Đơn hàng của tôi',
+                      ),
+                      _buildMenuItem(
+                        'chat_user',
+                        Icons.chat,
+                        'Tư vấn sản phẩm',
+                      ),
+                      _buildMenuItem('logout', Icons.logout, 'Đăng xuất'),
+                    ],
+              )
+              : IconButton(
+                icon: const Icon(Icons.login),
+                onPressed: () {
+                  Navigator.pushReplacementNamed(context, '/login');
+                },
               ),
-              onSelected: (value) {
-                switch (value) {
-                  case 'profile':
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                    );
-                    break;
-                  case 'cart':
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const CartPage()),
-                    );
-                    break;
-                  case 'orders':
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const OrderListPage()),
-                    );
-                    break;
-                  case 'chat_user':
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => UserChatScreen()),
-                    );
-                    break;
-                  case 'logout':
-                    FirebaseAuth.instance.signOut();
-                    Navigator.pushReplacementNamed(context, '/login');
-                    break;
-                }
-              },
-              itemBuilder:
-                  (context) => [
-                    _buildMenuItem(
-                      'profile',
-                      Icons.person_outline,
-                      'Hồ sơ cá nhân',
-                    ),
-                    _buildMenuItem(
-                      'cart',
-                      Icons.shopping_cart_outlined,
-                      'Giỏ hàng của tôi',
-                    ),
-                    _buildMenuItem(
-                      'orders',
-                      Icons.list_alt_outlined,
-                      'Đơn hàng của tôi',
-                    ),
-                    _buildMenuItem(
-                      'chat_user',
-                      Icons.chat_outlined,
-                      'Tư vấn sản phẩm',
-                    ),
-                    _buildMenuItem(
-                      'logout',
-                      Icons.logout_outlined,
-                      'Đăng xuất',
-                    ),
-                  ],
-            )
-          else
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.shopping_cart_outlined),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const CartPage()),
-                    );
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.account_circle_outlined),
-                  onPressed: () {
-                    Navigator.pushReplacementNamed(context, '/login');
-                  },
-                ),
-              ],
-            ),
         ],
       ),
       body:

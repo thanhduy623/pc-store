@@ -36,10 +36,9 @@ class _ProfileScreenUserState extends State<ProfileScreenUser> {
 
       _fullNameController.text = userDataFields['fullName'] ?? '';
       _addressController.text = userDataFields['shippingAddress'] ?? '';
-      _phoneController.text =
-          userDataFields['phone'] ?? userDataFields['phoneNumber'] ?? '';
+      _phoneController.text = userDataFields['phoneNumber'] ?? '';
       _isBlocked = userDataFields['isBlocked'] ?? false;
-      _userPoints = userDataFields['points'] ?? 0; // Load điểm
+      _userPoints = userDataFields['point'] ?? 0;
     }
   }
 
