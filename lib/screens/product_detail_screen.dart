@@ -5,7 +5,10 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:my_store/utils/controllPicture.dart';
 import 'package:my_store/controllers/addProductToCart.dart';
 import 'package:my_store/utils/moneyFormat.dart';
+import 'package:my_store/controllers/addProductToCart.dart';
+import 'package:my_store/screens/product_reviews.dart';
 
+// Cập nhật lại cho ProductDetailScreen
 class ProductDetailScreen extends StatefulWidget {
   final Map<String, dynamic> productData;
 
@@ -16,17 +19,9 @@ class ProductDetailScreen extends StatefulWidget {
 }
 
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
-  final TextEditingController _commentController = TextEditingController();
-  int _rating = 0;
   int _currentImageIndex = 0;
   final CarouselSliderController _carouselController =
       CarouselSliderController();
-
-  @override
-  void dispose() {
-    _commentController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +76,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       ],
                     ),
                   ),
-                if (isDesktop) const SizedBox(width: 16), // Giảm khoảng cách
+                if (isDesktop) const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -93,6 +88,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                      const SizedBox(height: 12),
+
+                      // Hiển thị rating trung bình nếu có
+                      _buildAverageRating(),
+
                       const SizedBox(height: 12),
 
                       //Mô tả
@@ -202,107 +202,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     }),
                 ],
               ),
-              const Divider(height: 32),
-              Text(
-                "Đánh giá sản phẩm",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: List.generate(5, (index) {
-                  return IconButton(
-                    icon: Icon(
-                      index < _rating ? Icons.star : Icons.star_border,
-                      color: Colors.amber,
-                    ),
-                    onPressed:
-                        FirebaseAuth.instance.currentUser != null
-                            ? () => setState(() => _rating = index + 1)
-                            : null,
-                  );
-                }),
-              ),
-              TextField(
-                controller: _commentController,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  hintText: "Nhập bình luận của bạn...",
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton(
-                  onPressed: () => _submitComment(productId),
-                  child: const Text("Gửi"),
-                ),
-              ),
-              const SizedBox(height: 16),
-              StreamBuilder<QuerySnapshot>(
-                stream:
-                    FirebaseFirestore.instance
-                        .collection('products')
-                        .doc(productId)
-                        .collection('reviews')
-                        .orderBy('timestamp', descending: true)
-                        .snapshots(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  final reviews = snapshot.data!.docs;
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Các đánh giá hiện có:",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ...reviews.map((doc) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        return Card(
-                          margin: const EdgeInsets.symmetric(vertical: 8),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(data['comment'] ?? ''),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: List.generate(
-                                    5,
-                                    (index) => Icon(
-                                      index < (data['rating'] ?? 0)
-                                          ? Icons.star
-                                          : Icons.star_border,
-                                      color: Colors.amber,
-                                      size: 16,
-                                    ),
-                                  ),
-                                ),
-                                if (data['userEmail'] != null)
-                                  Text(
-                                    'Bởi: ${data['userEmail']}',
-                                    style: const TextStyle(
-                                      fontStyle: FontStyle.italic,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }),
-                    ],
-                  );
-                },
-              ),
+
+              // Phần đánh giá sản phẩm (đã tách riêng thành widget)
+              ProductReviews(productId: productId, isDesktop: isDesktop),
             ],
             if (!isDesktop) ...[
               const Divider(height: 32),
@@ -318,15 +220,99 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 },
                 border: TableBorder.all(color: Colors.grey[200]!),
                 children: [
-                  // ... (phần thông số kỹ thuật cho mobile)
+                  TableRow(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Text(
+                          'Thương hiệu',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Text(
+                          widget.productData['brand'] ?? 'Chưa có thông tin',
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (attributes.isNotEmpty)
+                    ...attributes.entries.map((entry) {
+                      return TableRow(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Text(
+                              entry.key,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Text(_safeToString(entry.value)),
+                          ),
+                        ],
+                      );
+                    }),
                 ],
               ),
-              const Divider(height: 32),
-              // ... (phần đánh giá cho mobile)
+
+              // Phần đánh giá sản phẩm cho mobile
+              ProductReviews(productId: productId, isDesktop: false),
             ],
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildAverageRating() {
+    return StreamBuilder<DocumentSnapshot>(
+      stream:
+          FirebaseFirestore.instance
+              .collection('products')
+              .doc(widget.productData['id'])
+              .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data == null) {
+          return const SizedBox.shrink();
+        }
+
+        final data = snapshot.data!.data() as Map<String, dynamic>?;
+        if (data == null) return const SizedBox.shrink();
+
+        final averageRating = data['averageRating'] ?? 0.0;
+        final totalReviews = data['totalReviews'] ?? 0;
+
+        if (totalReviews == 0) return const SizedBox.shrink();
+
+        return Row(
+          children: [
+            ...List.generate(5, (index) {
+              // Hiển thị sao đầy hoặc nửa sao hoặc sao rỗng
+              double threshold = index + 0.5;
+              IconData iconData;
+              if (averageRating >= index + 1) {
+                iconData = Icons.star;
+              } else if (averageRating >= threshold) {
+                iconData = Icons.star_half;
+              } else {
+                iconData = Icons.star_border;
+              }
+
+              return Icon(iconData, color: Colors.amber, size: 18);
+            }),
+            const SizedBox(width: 8),
+            Text(
+              "${averageRating.toStringAsFixed(1)} (${totalReviews} đánh giá)",
+              style: const TextStyle(fontSize: 14, color: Colors.grey),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -427,39 +413,5 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             : widget.productData['image'] ?? '';
 
     await addProductToCart(context, productId, name, price, image);
-  }
-
-  Future<void> _submitComment(String productId) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null ||
-        _rating == 0 ||
-        _commentController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng đăng nhập và nhập đầy đủ thông tin'),
-        ),
-      );
-      return;
-    }
-
-    await FirebaseFirestore.instance
-        .collection('products')
-        .doc(productId)
-        .collection('reviews')
-        .add({
-          'rating': _rating,
-          'comment': _commentController.text.trim(),
-          'timestamp': FieldValue.serverTimestamp(),
-          'userEmail': currentUser.email,
-        });
-
-    setState(() {
-      _rating = 0;
-      _commentController.clear();
-    });
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Cảm ơn bạn đã đánh giá')));
   }
 }
