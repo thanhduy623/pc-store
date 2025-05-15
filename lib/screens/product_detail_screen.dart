@@ -307,7 +307,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             }),
             const SizedBox(width: 8),
             Text(
-              "${averageRating.toStringAsFixed(1)} (${totalReviews} đánh giá)",
+              "${averageRating.toStringAsFixed(1)} ($totalReviews đánh giá)",
               style: const TextStyle(fontSize: 14, color: Colors.grey),
             ),
           ],

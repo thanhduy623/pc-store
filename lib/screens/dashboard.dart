@@ -505,32 +505,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildTopCards(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final cardWidth = (constraints.maxWidth - 48) / 4;
-        return Wrap(
-          spacing: 16.0,
-          runSpacing: 16.0,
-          children: [
-            _buildStatCard(
-              'Người dùng',
-              _userRatio,
-              Icons.person,
-              width: cardWidth,
-            ),
-            _buildStatCard(
-              'Đơn hàng',
-              '$_orders',
-              Icons.shopping_cart,
-              width: cardWidth,
-            ),
-            _buildStatCard(
-              'Tổng tiền',
-              moneyFormat(_totalRevenue),
-              Icons.attach_money,
-              width: cardWidth,
-            ),
-            _buildTimePeriodDropdown(context, width: cardWidth),
-          ],
-        );
+        // Kích thước card tối thiểu
+        const minCardWidth = 200.0;
+
+        // Tính số cột có thể hiển thị dựa trên chiều rộng
+        int crossAxisCount =
+            (constraints.maxWidth / (minCardWidth + 16)).floor();
+        crossAxisCount = crossAxisCount.clamp(1, 4); // Giới hạn từ 1 đến 4 cột
+
+        final cardWidth =
+            (constraints.maxWidth - (crossAxisCount - 1) * 16) / crossAxisCount;
+
+        final cards = [
+          _buildStatCard(
+            'Người dùng',
+            _userRatio,
+            Icons.person,
+            width: cardWidth,
+          ),
+          _buildStatCard(
+            'Đơn hàng',
+            '$_orders',
+            Icons.shopping_cart,
+            width: cardWidth,
+          ),
+          _buildStatCard(
+            'Tổng tiền',
+            moneyFormat(_totalRevenue),
+            Icons.attach_money,
+            width: cardWidth,
+          ),
+          _buildTimePeriodDropdown(context, width: cardWidth),
+        ];
+
+        return Wrap(spacing: 16.0, runSpacing: 16.0, children: cards);
       },
     );
   }
@@ -538,16 +546,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildMiddleCards(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final double orderListWidth = constraints.maxWidth * 2 / 5;
-        final double revenueChartWidth = constraints.maxWidth * 3 / 5 - 16;
-        return Wrap(
-          spacing: 16.0,
-          runSpacing: 16.0,
-          children: [
-            _buildRevenueChartCard(width: revenueChartWidth),
-            _buildOrderListCard(width: orderListWidth),
-          ],
-        );
+        final maxWidth = constraints.maxWidth;
+
+        // Ngưỡng để chuyển layout: 600 px (bạn có thể điều chỉnh)
+        final isWideScreen = maxWidth > 600;
+
+        if (isWideScreen) {
+          final orderListWidth = maxWidth * 2 / 5;
+          final revenueChartWidth = maxWidth * 3 / 5 - 16;
+
+          return Wrap(
+            spacing: 16.0,
+            runSpacing: 16.0,
+            children: [
+              _buildRevenueChartCard(width: revenueChartWidth),
+              _buildOrderListCard(width: orderListWidth),
+            ],
+          );
+        } else {
+          // Điện thoại: xếp dọc, full-width
+          return Column(
+            children: [
+              _buildRevenueChartCard(width: maxWidth),
+              const SizedBox(height: 16),
+              _buildOrderListCard(width: maxWidth),
+            ],
+          );
+        }
       },
     );
   }
@@ -806,15 +831,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   title = _monthlyChartData[groupIndex].monthName;
                   break;
                 case 'Theo quý':
-                  title = 'Quý ${groupIndex + 1}';
+                  final data = _quarterlyChartData[groupIndex];
+                  title = 'Quý ${data.quarter}/${data.year}';
                   break;
                 case 'Theo năm':
                   title = _yearlyChartData[groupIndex].year.toString();
                   break;
               }
-              String revenue = rod.toY.toStringAsFixed(2);
+
+              double revenue = double.parse(rod.toY.toStringAsFixed(2));
+
               return BarTooltipItem(
-                '$title\nRevenue: \$$revenue',
+                '$title\nDoanh số: ${moneyFormat(revenue)}',
                 const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -897,6 +925,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   );
                 }
                 break;
+
               case 'Theo năm':
                 if (index >= 0 && index < _yearlyChartData.length) {
                   return Text(
@@ -921,6 +950,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildOrderListCard({double? width}) {
+    final hasData = _orderData.isNotEmpty;
+
     return SizedBox(
       width: width,
       height: 300,
@@ -936,36 +967,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
+
+              // Nếu có dữ liệu -> hiển thị danh sách, ngược lại -> hiển thị thông báo
               Expanded(
-                child: ListView.builder(
-                  itemCount: _orderData.length,
-                  itemBuilder: (context, index) {
-                    final order = _orderData[index];
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            order.orderDate,
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                          Text(
-                            order.orderId,
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                          Text(
-                            '${moneyFormat(order.total)}',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
+                child:
+                    hasData
+                        ? ListView.builder(
+                          itemCount: _orderData.length,
+                          itemBuilder: (context, index) {
+                            final order = _orderData[index];
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    order.orderDate,
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                  Text(
+                                    order.orderId,
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                  Text(
+                                    moneyFormat(order.total),
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        )
+                        : const Center(
+                          child: Text(
+                            'Không có đơn hàng nào được bán ra.',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontStyle: FontStyle.italic,
                             ),
                           ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+                        ),
               ),
             ],
           ),
@@ -1078,6 +1123,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  List<PieChartSectionData> _buildPieChartSections() {
+    final totalQuantity = _bestSellingProducts.fold<int>(
+      0,
+      (sum, item) => sum + (item['quantity'] as int),
+    );
+
+    final colors = [
+      Colors.blue,
+      Colors.red,
+      Colors.green,
+      Colors.orange,
+      Colors.purple,
+      Colors.teal,
+      Colors.yellow,
+      Colors.cyan,
+      Colors.brown,
+      Colors.pink,
+    ];
+
+    return List.generate(_bestSellingProducts.length, (i) {
+      final product = _bestSellingProducts[i];
+      final quantity = product['quantity'] as int;
+      final percentage =
+          totalQuantity == 0 ? 0 : (quantity / totalQuantity) * 100;
+
+      return PieChartSectionData(
+        color: colors[i % colors.length],
+        value: quantity.toDouble(),
+        title: '${percentage.toStringAsFixed(1)}%',
+        radius: 50,
+        titleStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      );
+    });
+  }
+
   Widget _buildRevenueComparison() {
     double maxRevenue = 0;
     String maxRevenueMonth = '';
@@ -1133,6 +1217,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildBestSellingProductsCard() {
+    final totalQuantity = _bestSellingProducts.fold<int>(
+      0,
+      (sum, item) => sum + (item['quantity'] as int),
+    );
+
+    final hasData = _bestSellingProducts.isNotEmpty && totalQuantity > 0;
+
     return Card(
       elevation: 4,
       child: Padding(
@@ -1145,34 +1236,107 @@ class _DashboardScreenState extends State<DashboardScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
-            SizedBox(
-              height: 250,
-              child: ListView.builder(
-                itemCount: _bestSellingProducts.length,
-                itemBuilder: (context, index) {
-                  final product = _bestSellingProducts[index];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '${product['productId']} - ${product['name']}',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                        Text(
-                          '${product['quantity']} sản phẩm',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+
+            if (hasData) ...[
+              // Biểu đồ tròn
+              SizedBox(
+                height: 200,
+                child: PieChart(
+                  PieChartData(
+                    sections: _buildPieChartSections(),
+                    sectionsSpace: 2,
+                    centerSpaceRadius: 40,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(height: 20),
+
+              // Tiêu đề bảng
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: const [
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        'ID',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 4,
+                      child: Text(
+                        'Tên sản phẩm',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        'Phần trăm',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        'Số lượng',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Danh sách dữ liệu
+              SizedBox(
+                height: 250,
+                child: ListView.builder(
+                  itemCount: _bestSellingProducts.length,
+                  itemBuilder: (context, index) {
+                    final product = _bestSellingProducts[index];
+                    final quantity = product['quantity'] as int;
+
+                    // Bỏ qua sản phẩm có số lượng 0
+                    if (quantity == 0) return const SizedBox.shrink();
+
+                    final percentage =
+                        totalQuantity == 0
+                            ? 0
+                            : (quantity / totalQuantity * 100).toStringAsFixed(
+                              1,
+                            );
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4.0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: Text(product['productId'].toString()),
+                          ),
+                          Expanded(
+                            flex: 4,
+                            child: Text(product['name'].toString()),
+                          ),
+                          Expanded(flex: 2, child: Text('$percentage%')),
+                          Expanded(flex: 2, child: Text(quantity.toString())),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ] else
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 40.0),
+                child: Center(
+                  child: Text(
+                    'Không có sản phẩm nào được bán ra.',
+                    style: TextStyle(fontSize: 16, fontStyle: FontStyle.italic),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
