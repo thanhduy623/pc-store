@@ -79,7 +79,7 @@ class _OrderListPageState extends State<OrderListPage> {
             final data = doc.data() as Map<String, dynamic>;
 
             return {
-              'id': doc.id,
+              'orderCode': doc.id,
               ...data, // Sử dụng spread operator để thêm tất cả các trường từ data
             };
           }).toList();

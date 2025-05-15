@@ -21,7 +21,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _orders = 0;
   double _totalRevenue = 0;
   DateTimeRange? _selectedDateRange;
-  String _selectedViewMode = 'Theo tháng';
+  String _selectedViewMode = 'Theo năm';
   List<RevenueData> _chartData = [];
   List<MonthlyRevenueData> _monthlyChartData = [];
   List<QuarterlyRevenueData> _quarterlyChartData = [];
@@ -94,12 +94,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
               .collection('orders')
               .where(
                 'orderDate',
-                isGreaterThanOrEqualTo: _selectedDateRange!.start,
-                isLessThanOrEqualTo: _selectedDateRange!.end,
+                isGreaterThanOrEqualTo: normalizeDate(
+                  _selectedDateRange!.start,
+                ),
+              )
+              .where(
+                'orderDate',
+                isLessThan: normalizeDate(
+                  _selectedDateRange!.end.add(const Duration(days: 1)),
+                ),
               )
               .get();
 
       for (final doc in orderSnapshot.docs) {
+        print(doc); // Added for debugging
         final data = doc.data() as Map<String, dynamic>;
         final orderDate =
             data['orderDate'] != null
@@ -108,9 +116,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final orderId = data['orderId'] ?? '';
         final total = (data['total'] ?? 0).toDouble();
 
-        _orders++;
-        _totalRevenue += total;
-        _orderData.add(OrderData(_formatDate(orderDate), orderId, total));
+        // Chỉ tính các đơn hàng trong ngày được chọn
+        if (isSameDay(orderDate, _selectedDateRange!.start) ||
+            isSameDay(orderDate, _selectedDateRange!.end) ||
+            (orderDate.isAfter(normalizeDate(_selectedDateRange!.start)) &&
+                orderDate.isBefore(normalizeDate(_selectedDateRange!.end)))) {
+          _orders++;
+          _totalRevenue += total;
+          _orderData.add(OrderData(_formatDate(orderDate), orderId, total));
+        }
       }
     } catch (e) {
       print("Error fetching order data: $e");
@@ -118,6 +132,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } finally {
       if (mounted) setState(() {});
     }
+  }
+
+  // Hàm tiện ích để chuẩn hóa DateTime (loại bỏ thời gian)
+  DateTime normalizeDate(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
+  }
+
+  //Hàm tiện ích để so sánh ngày
+  bool isSameDay(DateTime date1, DateTime date2) {
+    return date1.year == date2.year &&
+        date1.month == date2.month &&
+        date1.day == date2.day;
   }
 
   void _updateChartData() {
@@ -152,12 +178,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final dailyOrderSnapshot =
           await _firestore
               .collection('orders')
+              .where('orderDate', isGreaterThanOrEqualTo: normalizeDate(date))
               .where(
                 'orderDate',
-                isGreaterThanOrEqualTo: date,
-                isLessThan: date.add(const Duration(days: 1)),
+                isLessThan: normalizeDate(date.add(const Duration(days: 1))),
               )
               .get();
+
       for (final doc in dailyOrderSnapshot.docs) {
         final data = doc.data();
         dailyRevenue += (data['total'] ?? 0).toDouble();
@@ -212,8 +239,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               .collection('orders')
               .where(
                 'orderDate',
-                isGreaterThanOrEqualTo: monthDate,
-                isLessThan: nextMonth,
+                isGreaterThanOrEqualTo: normalizeDate(monthDate),
+                isLessThan: normalizeDate(nextMonth),
               )
               .get();
       for (final doc in monthlyOrderSnapshot.docs) {
@@ -297,8 +324,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               .collection('orders')
               .where(
                 'orderDate',
-                isGreaterThanOrEqualTo: quarterStartDate,
-                isLessThanOrEqualTo: quarterEndDate,
+                isGreaterThanOrEqualTo: normalizeDate(quarterStartDate),
+                isLessThanOrEqualTo: normalizeDate(quarterEndDate),
               )
               .get();
       for (final doc in quarterlyOrderSnapshot.docs) {
@@ -348,8 +375,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               .collection('orders')
               .where(
                 'orderDate',
-                isGreaterThanOrEqualTo: yearStartDate,
-                isLessThanOrEqualTo: yearEndDate,
+                isGreaterThanOrEqualTo: normalizeDate(yearStartDate),
+                isLessThanOrEqualTo: normalizeDate(yearEndDate),
               )
               .get();
       for (final doc in yearlyOrderSnapshot.docs) {
@@ -404,8 +431,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               .collection('orders')
               .where(
                 'orderDate',
-                isGreaterThanOrEqualTo: weekStartDate,
-                isLessThanOrEqualTo: weekEndDate,
+                isGreaterThanOrEqualTo: normalizeDate(weekStartDate),
+                isLessThanOrEqualTo: normalizeDate(weekEndDate),
               )
               .get();
       for (final doc in weeklyOrderSnapshot.docs) {
@@ -419,63 +446,60 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _updateBestSellingProducts() async {
-    _bestSellingProducts.clear();
     try {
-      // Get orders within the selected date range
-      final orderSnapshot =
+      final snapshot =
           await _firestore
               .collection('orders')
               .where(
                 'orderDate',
-                isGreaterThanOrEqualTo: _selectedDateRange!.start,
-                isLessThanOrEqualTo: _selectedDateRange!.end,
+                isGreaterThanOrEqualTo: normalizeDate(
+                  _selectedDateRange!.start,
+                ),
+              )
+              .where(
+                'orderDate',
+                isLessThan: normalizeDate(
+                  _selectedDateRange!.end.add(const Duration(days: 1)),
+                ),
               )
               .get();
 
-      // A map to store the quantity of each product
-      Map<String, int> productQuantities = {};
+      final Map<String, Map<String, dynamic>> productMap = {};
 
-      for (final orderDoc in orderSnapshot.docs) {
-        final orderData = orderDoc.data();
-        final items = orderData['items'] as List<dynamic>? ?? [];
+      for (final doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final items = data['items'] as List<dynamic>?;
 
-        for (var item in items) {
-          final productId = item['productId'] as String?;
-          final productName = item['productName'] as String?;
-          final quantity = item['quantity'] as int?;
+        if (items == null) continue;
 
-          if (productId != null && productName != null && quantity != null) {
-            final key = '$productId - $productName'; // Create a unique key
-            if (productQuantities.containsKey(key)) {
-              productQuantities[key] = productQuantities[key]! + quantity;
-            } else {
-              productQuantities[key] = quantity;
-            }
+        for (final item in items) {
+          final productId = item['productId'].toString();
+          final name = item['productName'] ?? 'Không tên';
+          final quantity = (item['quantity'] ?? 0) as int;
+
+          if (productMap.containsKey(productId)) {
+            productMap[productId]!['quantity'] += quantity;
+          } else {
+            productMap[productId] = {
+              'productId': productId,
+              'productName': name,
+              'quantity': quantity,
+            };
           }
         }
       }
 
-      // Sort the products by quantity in descending order
-      final sortedProducts =
-          productQuantities.entries.toList()
-            ..sort((a, b) => b.value.compareTo(a.value));
+      final products = productMap.values.toList();
 
-      // Take the top 5 products
-      final topSellingProducts = sortedProducts.take(10);
+      // Sắp xếp giảm dần theo số lượng bán
+      products.sort(
+        (a, b) => (b['quantity'] as int).compareTo(a['quantity'] as int),
+      );
 
-      // Convert the result to the desired format
-      _bestSellingProducts =
-          topSellingProducts.map((entry) {
-            final key = entry.key.split(' - ');
-            return {
-              'productId': key[0],
-              'name': key[1],
-              'quantity': entry.value,
-            };
-          }).toList();
+      // Lấy top 10
+      _bestSellingProducts = products.take(10).toList();
     } catch (e) {
-      print('Error fetching best selling products: $e');
-      // Handle the error appropriately
+      print("Error fetching best selling products: $e");
       _bestSellingProducts = [];
     } finally {
       if (mounted) setState(() {});
@@ -1107,9 +1131,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               int rodIndex,
             ) {
               String monthName = _monthlyChartData[groupIndex].monthName;
-              String revenue = rod.toY.toStringAsFixed(2);
+              double revenue = double.parse(rod.toY.toStringAsFixed(2));
               return BarTooltipItem(
-                '$monthName\nRevenue: \$$revenue',
+                '$monthName\nDoanh số: ${moneyFormat(revenue)}',
                 const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -1317,7 +1341,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                           Expanded(
                             flex: 4,
-                            child: Text(product['name'].toString()),
+                            child: Text(product['productName'].toString()),
                           ),
                           Expanded(flex: 2, child: Text('$percentage%')),
                           Expanded(flex: 2, child: Text(quantity.toString())),
