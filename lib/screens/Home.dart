@@ -836,11 +836,25 @@ class _HomeScreenState extends State<HomeScreen> {
                       _buildMenuItem('logout', Icons.logout, 'Đăng xuất'),
                     ],
               )
-              : IconButton(
-                icon: const Icon(Icons.login),
-                onPressed: () {
-                  Navigator.pushReplacementNamed(context, '/login');
-                },
+              : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.shopping_cart),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const CartPage()),
+                      );
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.login),
+                    onPressed: () {
+                      Navigator.pushReplacementNamed(context, '/login');
+                    },
+                  ),
+                ],
               ),
         ],
       ),

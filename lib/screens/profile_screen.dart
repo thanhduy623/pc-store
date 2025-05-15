@@ -83,7 +83,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           {
             'fullName': '',
             'shippingAddress': '',
-            'phone': '', // Khởi tạo số điện thoại
+            'phoneNumber': '', // Khởi tạo số điện thoại
             'avatar': null,
           },
         );
@@ -110,7 +110,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             .update({
               'fullName': _fullNameController.text.trim(),
               'shippingAddress': _addressController.text.trim(),
-              'phone': _phoneController.text.trim(), // Lưu số điện thoại
+              'phoneNumber': _phoneController.text.trim(), // Lưu số điện thoại
               'avatar': _avatarBase64,
             });
 
