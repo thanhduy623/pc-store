@@ -87,7 +87,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             'avatar': null,
           },
         );
-        _loadUserData(); //load lại để hiển thị
+        _loadUserData(); //load lại git  hiển thị
       }
     } catch (e) {
       print("Lỗi khi tải dữ liệu người dùng: $e"); // Log lỗi
