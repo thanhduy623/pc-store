@@ -224,7 +224,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
         // Nếu chưa có trường 'point', mặc định là 0
         final currentPoints =
             (data.containsKey('point') && data['point'] != null)
-                ? (data['point'] as int)
+                ? (data['point'] as num).toInt()
                 : 0;
 
         double earnedPointsDouble = (total * 10 / 100) / 1000; // 10%
@@ -232,6 +232,7 @@ class _ConfirmPageState extends State<ConfirmPage> {
         double usedPointsDouble = double.tryParse(pointsController.text) ?? 0;
         int usedPoints = usedPointsDouble.round();
         int updatedPoints = currentPoints - usedPoints + earnedPoints;
+
         if (updatedPoints < 0) updatedPoints = 0;
 
         // Cập nhật lại điểm và lịch sử điểm

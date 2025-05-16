@@ -80,6 +80,12 @@ class _OrderListPageState extends State<OrderListPage> {
                 'items': items,
               };
             }).toList();
+
+        orders.sort((a, b) {
+          final dateA = DateTime.parse(a['orderDate'] as String);
+          final dateB = DateTime.parse(b['orderDate'] as String);
+          return dateB.compareTo(dateA);
+        });
       });
     } catch (e) {
       print('Error loading orders: $e');
